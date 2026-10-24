@@ -1,0 +1,21 @@
+# Tool configuration only (dependencies are managed in requirements*.txt).
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: import order, B: likely bugs, UP: modern syntax
+select = ["E", "W", "F", "I", "B", "UP"]
+# FastAPI's dependency-injection idiom (Depends() in defaults) is intentional.
+ignore = ["B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+# The local "alembic/" migrations folder must not be mistaken for the package.
+known-third-party = ["alembic"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true

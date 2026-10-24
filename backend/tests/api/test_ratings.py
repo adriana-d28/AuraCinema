@@ -1,0 +1,126 @@
+"""API tests for the ratings endpoints, including cross-user isolation."""
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.models import Rating
+
+pytestmark = pytest.mark.db
+
+RATINGS_URL = "/api/v1/ratings"
+
+
+def put_rating(client: TestClient, headers, movie_id, value):
+    return client.put(f"{RATINGS_URL}/{movie_id}", json={"rating": value}, headers=headers)
+
+
+def test_create_rating_returns_201(client: TestClient, alice_headers):
+    response = put_rating(client, alice_headers, 318, 4.5)
+    assert response.status_code == 201
+    body = response.json()
+    assert body["movie_id"] == 318
+    assert body["rating"] == 4.5
+    assert set(body) == {"movie_id", "rating", "created_at", "rated_at"}
+
+
+def test_update_rating_returns_200_without_creating_duplicates(
+    client: TestClient, alice_headers, db_session: Session
+):
+    created = put_rating(client, alice_headers, 318, 3.0).json()
+    response = put_rating(client, alice_headers, 318, 5.0)
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["rating"] == 5.0
+    assert updated["created_at"] == created["created_at"]
+    assert updated["rated_at"] >= created["rated_at"]
+    assert db_session.scalar(select(func.count()).select_from(Rating)) == 1
+
+
+def test_list_ratings_returns_only_current_users_ratings(client: TestClient, alice_headers):
+    put_rating(client, alice_headers, 1, 4.0)
+    put_rating(client, alice_headers, 2, 2.5)
+    response = client.get(RATINGS_URL, headers=alice_headers)
+    assert response.status_code == 200
+    assert sorted(r["movie_id"] for r in response.json()) == [1, 2]
+
+
+def test_list_ratings_is_empty_for_new_user(client: TestClient, alice_headers):
+    assert client.get(RATINGS_URL, headers=alice_headers).json() == []
+
+
+def test_delete_rating_returns_204_then_404(client: TestClient, alice_headers):
+    put_rating(client, alice_headers, 1, 4.0)
+    first = client.delete(f"{RATINGS_URL}/1", headers=alice_headers)
+    assert first.status_code == 204
+    assert first.content == b""
+    second = client.delete(f"{RATINGS_URL}/1", headers=alice_headers)
+    assert second.status_code == 404
+    assert second.json() == {"detail": "Rating not found"}
+    assert client.get(RATINGS_URL, headers=alice_headers).json() == []
+
+
+@pytest.mark.parametrize("value", [0, 0.25, 5.5, 6, -1, 3.3, "4.5", "abc", True, None])
+def test_invalid_rating_values_are_rejected(client: TestClient, alice_headers, value):
+    assert put_rating(client, alice_headers, 1, value).status_code == 422
+
+
+@pytest.mark.parametrize("value", [0.5, 5.0])
+def test_rating_boundaries_are_accepted(client: TestClient, alice_headers, value):
+    assert put_rating(client, alice_headers, 1, value).status_code == 201
+
+
+@pytest.mark.parametrize("movie_id", ["0", "-1", "abc", "1.5", "2147483648", "1;DROP TABLE users"])
+def test_invalid_movie_ids_are_rejected(client: TestClient, alice_headers, movie_id):
+    put_response = put_rating(client, alice_headers, movie_id, 4.0)
+    delete_response = client.delete(f"{RATINGS_URL}/{movie_id}", headers=alice_headers)
+    assert put_response.status_code == 422
+    assert delete_response.status_code == 422
+
+
+def test_missing_body_and_missing_field_are_rejected(client: TestClient, alice_headers):
+    assert client.put(f"{RATINGS_URL}/1", headers=alice_headers).status_code == 422
+    assert client.put(f"{RATINGS_URL}/1", json={}, headers=alice_headers).status_code == 422
+
+
+def test_malformed_json_is_rejected(client: TestClient, alice_headers):
+    response = client.put(
+        f"{RATINGS_URL}/1",
+        content='{"rating": 4.',
+        headers={**alice_headers, "Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+
+
+def test_client_cannot_set_user_id_in_body(client: TestClient, alice_headers):
+    """Ownership comes from the token; a user_id in the body is rejected."""
+    response = client.put(
+        f"{RATINGS_URL}/1", json={"rating": 4.0, "user_id": 2}, headers=alice_headers
+    )
+    assert response.status_code == 422
+
+
+class TestCrossUserIsolation:
+    def test_users_cannot_see_each_others_ratings(
+        self, client: TestClient, alice_headers, bob_headers
+    ):
+        put_rating(client, alice_headers, 1, 4.0)
+        assert client.get(RATINGS_URL, headers=bob_headers).json() == []
+
+    def test_user_cannot_delete_another_users_rating(
+        self, client: TestClient, alice_headers, bob_headers
+    ):
+        put_rating(client, alice_headers, 1, 4.0)
+        response = client.delete(f"{RATINGS_URL}/1", headers=bob_headers)
+        assert response.status_code == 404
+        assert len(client.get(RATINGS_URL, headers=alice_headers).json()) == 1
+
+    def test_rating_same_movie_does_not_overwrite_another_users_rating(
+        self, client: TestClient, alice_headers, bob_headers
+    ):
+        put_rating(client, alice_headers, 1, 4.0)
+        response = put_rating(client, bob_headers, 1, 1.0)
+        assert response.status_code == 201  # Bob gets his own new rating
+        assert client.get(RATINGS_URL, headers=alice_headers).json()[0]["rating"] == 4.0
+        assert client.get(RATINGS_URL, headers=bob_headers).json()[0]["rating"] == 1.0

@@ -1,0 +1,24 @@
+# Runtime dependencies for the AuraCinema backend.
+# Lower bounds are the versions this phase was developed and tested with
+# (Python 3.14); upper bounds prevent unexpected breaking major upgrades.
+
+# Web framework and ASGI server
+fastapi>=0.143,<1.0
+uvicorn[standard]>=0.54,<1.0
+
+# Typed settings from environment variables; email validation for EmailStr
+# (Pydantic v2 itself is installed as a FastAPI dependency)
+pydantic-settings>=2.16,<3.0
+email-validator>=2.3,<3.0
+
+# Database access: SQLAlchemy ORM, psycopg 3 PostgreSQL driver, Alembic migrations
+sqlalchemy>=2.0.54,<2.1
+psycopg[binary]>=3.3,<4.0
+alembic>=1.20,<2.0
+
+# Authentication: Argon2 password hashing and JWT signing/validation
+pwdlib[argon2]>=0.3,<1.0
+pyjwt>=2.15,<3.0
+
+# Required by FastAPI to parse the form-encoded OAuth2 login request
+python-multipart>=0.0.32,<1.0
