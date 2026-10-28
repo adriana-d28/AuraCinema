@@ -1,2 +1,16 @@
 # VS Code files (project settings, workspace and extensions).
 .vscode/
+
+# ML: raw MovieLens 32M dataset and generated processed data (large, never committed).
+ml/data/
+
+# ML phase documentation and generated reports (kept local for now).
+ml/docs/
+
+# Project-level documentation folder at the repository root (kept local for now).
+/docs/
+
+# Python and pytest caches inside ml/.
+ml/.pytest_cache/
+ml/**/__pycache__/
+

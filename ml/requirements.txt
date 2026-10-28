@@ -1,0 +1,7 @@
+# Dependencies of the AuraCinema ML data-preparation pipeline (ml/src/prepare_data.py).
+# Versions match the "AuraCinema" conda environment used for the EDA notebook.
+pandas==3.0.6
+numpy==2.5.2
+
+# Testing
+pytest>=8.4,<9.0
