@@ -25,7 +25,8 @@ class WatchlistItem(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    movie_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    # MovieLens movieId; must exist in the catalogue (same rule as ratings).
+    movie_id: Mapped[int] = mapped_column(Integer, ForeignKey("movies.movie_id"), nullable=False)
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, server_default=func.now()
     )

@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Rating
+from tests.helpers import UNKNOWN_MOVIE_ID
 
 pytestmark = pytest.mark.db
 
@@ -124,3 +125,16 @@ class TestCrossUserIsolation:
         assert response.status_code == 201  # Bob gets his own new rating
         assert client.get(RATINGS_URL, headers=alice_headers).json()[0]["rating"] == 4.0
         assert client.get(RATINGS_URL, headers=bob_headers).json()[0]["rating"] == 1.0
+
+
+def test_rating_a_movie_outside_the_catalogue_returns_404(
+    client: TestClient, alice_headers, db_session: Session
+):
+    response = put_rating(client, alice_headers, UNKNOWN_MOVIE_ID, 4.0)
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Movie not found"}
+    assert db_session.scalar(select(func.count()).select_from(Rating)) == 0
+
+
+def test_movie_without_tmdb_id_can_be_rated(client: TestClient, alice_headers):
+    assert put_rating(client, alice_headers, 7842, 3.5).status_code == 201

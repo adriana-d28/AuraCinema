@@ -55,6 +55,19 @@ class Settings(BaseSettings):
     # NoDecode lets us accept a simple comma-separated string instead of JSON.
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
 
+    # TMDB (The Movie Database) supplies optional extra movie information such
+    # as the overview and poster. The value is the "API Read Access Token" from
+    # the TMDB account settings, sent as a Bearer header. It is used only by the
+    # maintenance scripts that fill the movie_metadata table; the API itself
+    # reads that table and works without a token.
+    tmdb_api_read_access_token: SecretStr | None = None
+    # Maximum seconds to wait for one TMDB request, so a slow external service
+    # cannot block a script indefinitely.
+    tmdb_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    # Stored metadata older than this is refreshed by
+    # scripts/refresh_movie_metadata.py (default: 30 days).
+    tmdb_metadata_refresh_days: int = Field(default=30, ge=1, le=3650)
+
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, value: SecretStr) -> SecretStr:
@@ -74,6 +87,15 @@ class Settings(BaseSettings):
             raise ValueError("is still the placeholder from .env.example; generate a real secret")
         if len(secret) < MIN_SECRET_LENGTH:
             raise ValueError(f"must be at least {MIN_SECRET_LENGTH} characters long")
+        return value
+
+    @field_validator("tmdb_api_read_access_token", mode="before")
+    @classmethod
+    def empty_tmdb_token_means_not_configured(cls, value: object) -> object:
+        # .env.example contains "TMDB_API_READ_ACCESS_TOKEN=" (empty); treat an
+        # empty or blank value the same as a missing one.
+        if isinstance(value, str) and not value.strip():
+            return None
         return value
 
     @field_validator("cors_origins", mode="before")

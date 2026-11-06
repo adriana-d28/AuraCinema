@@ -10,6 +10,9 @@ ml/docs/
 # Project-level documentation folder at the repository root (kept local for now).
 /docs/
 
+# Frontend documentation (kept local for now, like the other docs folders).
+/frontend/docs/
+
 # Python and pytest caches inside ml/.
 ml/.pytest_cache/
 ml/**/__pycache__/

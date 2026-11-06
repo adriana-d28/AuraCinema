@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import InvalidTokenError, decode_access_token
 from app.db.session import get_db
+from app.models.movie import Movie
 from app.models.user import User
 
 # Reads the "Authorization: Bearer <token>" header. tokenUrl tells Swagger UI
@@ -41,3 +42,11 @@ def get_current_user(db: DbSession, token: Annotated[str, Depends(oauth2_scheme)
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def get_movie_or_404(db: Session, movie_id: int) -> Movie:
+    """Return the catalogue movie, or respond 404 if the ID is not in the catalogue."""
+    movie = db.get(Movie, movie_id)
+    if movie is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found")
+    return movie

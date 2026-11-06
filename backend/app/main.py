@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, health, ratings, users, watchlist
+from app.api.routes import auth, health, movies, ratings, users, watchlist
 from app.core.config import get_settings
 
 API_V1_PREFIX = "/api/v1"
@@ -77,7 +77,7 @@ def create_app() -> FastAPI:
 
     # Health checks are unversioned so infrastructure probes never need to change.
     app.include_router(health.router)
-    for module in (auth, users, ratings, watchlist):
+    for module in (auth, users, movies, ratings, watchlist):
         app.include_router(module.router, prefix=API_V1_PREFIX)
 
     logger.info("AuraCinema API initialised (environment=%s)", settings.app_env.value)

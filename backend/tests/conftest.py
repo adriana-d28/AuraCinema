@@ -20,7 +20,7 @@ from sqlalchemy import Engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
-from tests.helpers import TEST_JWT_SECRET, auth_headers
+from tests.helpers import TEST_JWT_SECRET, TEST_MOVIES, auth_headers
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
@@ -48,14 +48,35 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["JWT_SECRET_KEY"] = TEST_JWT_SECRET
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "60"
 os.environ["CORS_ORIGINS"] = "http://localhost:5173"
+# Automated tests must never call the real TMDB API, even if the developer's
+# .env contains a token. TMDB behaviour is tested with mocked HTTP responses.
+os.environ["TMDB_API_READ_ACCESS_TOKEN"] = ""
 
 # Imported only after the environment is configured.
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
 
+from app.core.titles import build_search_title  # noqa: E402
 from app.db.session import get_engine, get_session_factory  # noqa: E402
 
-TRUNCATE_SQL = text("TRUNCATE users, ratings, watchlist_items RESTART IDENTITY CASCADE")
+TRUNCATE_SQL = text(
+    "TRUNCATE users, ratings, watchlist_items, movie_metadata, movies RESTART IDENTITY CASCADE"
+)
+INSERT_MOVIE_SQL = text(
+    "INSERT INTO movies (movie_id, title, genres, tmdb_id, imdb_id, search_title) "
+    "VALUES (:movie_id, :title, :genres, :tmdb_id, :imdb_id, :search_title)"
+)
+
+
+def catalogue_rows() -> list[dict]:
+    rows = [
+        dict(zip(("movie_id", "title", "genres", "tmdb_id", "imdb_id"), movie, strict=True))
+        for movie in TEST_MOVIES
+    ]
+    for row in rows:
+        # Raw SQL bypasses the ORM, so the derived search column is computed here.
+        row["search_title"] = build_search_title(row["title"])
+    return rows
 
 
 def alembic_config() -> Config:
@@ -85,9 +106,11 @@ def migrated_engine() -> Iterator[Engine]:
 
 @pytest.fixture
 def clean_db(migrated_engine: Engine) -> Engine:
-    """Empty all application tables so each test starts from a known state."""
+    """Empty all application tables, then load the small test catalogue, so
+    each test starts from a known state."""
     with migrated_engine.begin() as connection:
         connection.execute(TRUNCATE_SQL)
+        connection.execute(INSERT_MOVIE_SQL, catalogue_rows())
     return migrated_engine
 
 

@@ -22,3 +22,8 @@ pyjwt>=2.15,<3.0
 
 # Required by FastAPI to parse the form-encoded OAuth2 login request
 python-multipart>=0.0.32,<1.0
+
+# HTTP client for the TMDB API. It was already installed as the TestClient
+# dependency (see requirements-dev.txt), so no new package is introduced;
+# It moves here because the application now uses it at runtime.
+httpx2>=2.13,<3.0

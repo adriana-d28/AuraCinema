@@ -1,0 +1,77 @@
+from typing import TYPE_CHECKING
+
+from sqlalchemy import CheckConstraint, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+
+from app.core.titles import build_search_title
+from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.movie_metadata import MovieMetadata
+
+# Longest catalogue title is 114 characters and the longest genre string is 77,
+# so 255 leaves comfortable room while still rejecting absurd values.
+TITLE_MAX_LENGTH = 255
+GENRES_MAX_LENGTH = 255
+
+# MovieLens' own marker for a movie without genre information.
+NO_GENRES_LISTED = "(no genres listed)"
+
+
+class Movie(Base):
+    """One movie of the AuraCinema catalogue (the prepared MovieLens subset).
+
+    The primary key is the original MovieLens movieId, not a new number. The
+    ratings and watchlist tables already store this ID, and the recommendation
+    model will be trained on MovieLens data indexed by the same ID, so using it
+    everywhere avoids any translation between identifiers.
+
+    Title and genres are the original MovieLens values. TMDB and IMDb IDs are
+    external identifiers used only to look up extra information; they are
+    nullable because not every MovieLens movie has them.
+    """
+
+    __tablename__ = "movies"
+    __table_args__ = (
+        CheckConstraint("movie_id > 0", name="movie_id_positive"),
+        CheckConstraint("tmdb_id > 0", name="tmdb_id_positive"),
+        CheckConstraint("imdb_id > 0", name="imdb_id_positive"),
+    )
+
+    # autoincrement=False: the value always comes from MovieLens, never from a
+    # database sequence.
+    movie_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    title: Mapped[str] = mapped_column(String(TITLE_MAX_LENGTH), nullable=False)
+    # Kept in the MovieLens pipe-separated format, e.g. "Action|Sci-Fi|Thriller".
+    genres: Mapped[str] = mapped_column(String(GENRES_MAX_LENGTH), nullable=False)
+    # Not unique: in the full MovieLens links.csv a few TMDB IDs are shared by
+    # two MovieLens movies, so uniqueness would reject valid source data.
+    tmdb_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Numeric part of the IMDb ID, as in MovieLens (114709 means "tt0114709").
+    imdb_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Normalized copy of the title used only for searching (lower case, no
+    # accents or punctuation, trailing articles moved back), e.g.
+    # "matrix the 1999|the matrix". It is derived from `title` automatically
+    # (see _sync_search_title) and never shown to users.
+    search_title: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Supplementary TMDB metadata, stored locally (one row per movie at most).
+    movie_metadata: Mapped["MovieMetadata | None"] = relationship(
+        back_populates="movie", uselist=False, passive_deletes=True
+    )
+
+    @validates("title")
+    def _sync_search_title(self, _key: str, title: str | None) -> str | None:
+        # Every time the title is set through the ORM, the search form follows.
+        # A missing title is left for the database NOT NULL constraint to reject.
+        self.search_title = build_search_title(title) if title is not None else None
+        return title
+
+    def genre_list(self) -> list[str]:
+        """Genres as a list; the "(no genres listed)" marker becomes an empty list."""
+        if self.genres == NO_GENRES_LISTED:
+            return []
+        return [genre for genre in self.genres.split("|") if genre]
+
+    def __repr__(self) -> str:
+        return f"Movie(movie_id={self.movie_id!r}, title={self.title!r})"

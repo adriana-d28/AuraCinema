@@ -3,8 +3,8 @@
 
 pytest>=8.4,<9.0
 pytest-cov>=7.1,<8.0
-# HTTP client used by FastAPI's TestClient. Starlette 1.x deprecates the
-# original "httpx" package for this purpose and recommends its successor "httpx2".
-httpx2>=2.13,<3.0
+# FastAPI's TestClient needs "httpx2" (Starlette 1.x deprecates the original
+# "httpx" for this purpose). It is now a runtime dependency in requirements.txt
+# (used by the TMDB client), so it is installed through the line above.
 # Lightweight linter and formatter
 ruff>=0.17,<1.0

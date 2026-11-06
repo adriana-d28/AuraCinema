@@ -5,7 +5,9 @@ import math
 import pytest
 from pydantic import ValidationError
 
+from app.models.movie import Movie
 from app.schemas.auth import RegisterRequest
+from app.schemas.movie import MovieRead
 from app.schemas.rating import RatingUpsert
 
 
@@ -61,3 +63,21 @@ class TestRegisterValidation:
     @pytest.mark.parametrize("password", ["x" * 15, "x" * 128])
     def test_passwords_at_length_boundaries_are_accepted(self, password):
         assert RegisterRequest(email="a@example.com", password=password).password == password
+
+
+# --- Movie schema -------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("genres", "expected"),
+    [
+        ("Action|Sci-Fi|Thriller", ["Action", "Sci-Fi", "Thriller"]),
+        ("Comedy", ["Comedy"]),
+        ("(no genres listed)", []),  # MovieLens marker for "no genre information".
+    ],
+)
+def test_movie_read_splits_movielens_genres(genres, expected):
+    movie = Movie(movie_id=1, title="T (2000)", genres=genres, tmdb_id=None, imdb_id=None)
+    read = MovieRead.from_movie(movie)
+    assert read.genres == expected
+    assert movie.genres == genres  # The stored MovieLens value is not changed.

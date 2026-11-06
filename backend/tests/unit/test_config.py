@@ -95,3 +95,41 @@ def test_validation_error_does_not_echo_secret_value():
     with pytest.raises(ValidationError) as exc_info:
         make_settings(jwt_secret_key="short-secret-value")
     assert "short-secret-value" not in str(exc_info.value)
+
+
+# --- TMDB settings ----------------------------------------------------------
+
+
+def test_tmdb_is_optional_and_has_safe_defaults():
+    settings = make_settings()
+    assert settings.tmdb_api_read_access_token is None
+    assert settings.tmdb_timeout_seconds == 5.0
+    assert settings.tmdb_metadata_refresh_days == 30
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def test_empty_tmdb_token_means_not_configured(value):
+    assert make_settings(tmdb_api_read_access_token=value).tmdb_api_read_access_token is None
+
+
+def test_tmdb_token_is_masked_in_repr():
+    settings = make_settings(tmdb_api_read_access_token="secret-tmdb-token-value")
+    assert settings.tmdb_api_read_access_token.get_secret_value() == "secret-tmdb-token-value"
+    assert "secret-tmdb-token-value" not in repr(settings)
+
+
+@pytest.mark.parametrize("timeout", [0, -1, 31])
+def test_tmdb_timeout_out_of_range_is_rejected(timeout):
+    with pytest.raises(ValidationError):
+        make_settings(tmdb_timeout_seconds=timeout)
+
+
+@pytest.mark.parametrize("days", [0, -5, 3651])
+def test_tmdb_metadata_refresh_days_out_of_range_is_rejected(days):
+    with pytest.raises(ValidationError):
+        make_settings(tmdb_metadata_refresh_days=days)
+
+
+def test_tmdb_metadata_refresh_days_is_configurable(monkeypatch):
+    monkeypatch.setenv("TMDB_METADATA_REFRESH_DAYS", "7")
+    assert make_settings().tmdb_metadata_refresh_days == 7

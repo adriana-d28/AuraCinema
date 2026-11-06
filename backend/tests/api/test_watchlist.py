@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import WatchlistItem
+from tests.helpers import UNKNOWN_MOVIE_ID
 
 pytestmark = pytest.mark.db
 
@@ -76,3 +77,12 @@ class TestCrossUserIsolation:
     ):
         assert client.put(f"{WATCHLIST_URL}/1", headers=alice_headers).status_code == 201
         assert client.put(f"{WATCHLIST_URL}/1", headers=bob_headers).status_code == 201
+
+
+def test_adding_a_movie_outside_the_catalogue_returns_404(
+    client: TestClient, alice_headers, db_session: Session
+):
+    response = client.put(f"{WATCHLIST_URL}/{UNKNOWN_MOVIE_ID}", headers=alice_headers)
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Movie not found"}
+    assert db_session.scalar(select(func.count()).select_from(WatchlistItem)) == 0

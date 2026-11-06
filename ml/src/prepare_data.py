@@ -461,9 +461,9 @@ def split_ratings_by_user(
     ordered = ratings.sort_values(["userId", "timestamp", "movieId"]).reset_index(drop=True)
     counts = ordered.groupby("userId")["movieId"].transform("size")
 
-    eligible = counts >= min_user_ratings
-    excluded_users = int(ordered.loc[~eligible, "userId"].nunique())
-    ordered, counts = ordered[eligible], counts[eligible]
+    has_min_history = counts >= min_user_ratings
+    excluded_users = int(ordered.loc[~has_min_history, "userId"].nunique())
+    ordered, counts = ordered[has_min_history], counts[has_min_history]
 
     # Position of each rating in the user's history: 0 = oldest.
     # We need to split each user's rating history individually, 
@@ -486,7 +486,7 @@ def split_ratings_by_user(
         "eligible_users": int(ordered["userId"].nunique()),
         "excluded_users_insufficient_history": excluded_users,
         "train_ratings": len(train),
-        "test_ratings_before_eligibility": len(test),
+        "test_ratings_before_movie_filter": len(test),
         "users_with_boundary_timestamp_tie": boundary_ties,
     }
     return train, test, stats
@@ -704,7 +704,6 @@ def run_pipeline(
 
     logger.info("Selecting the subset")
     subset, selection = select_dataset_subset(ratings, movies, config)
-    total_clean_ratings = len(ratings)
     del ratings
 
     logger.info("Splitting into training and test sets")

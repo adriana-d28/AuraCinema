@@ -45,9 +45,10 @@ class Rating(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    # MovieLens movieId. There is no movies table yet, so existence of the
-    # movie is not checked by a foreign key in this phase.
-    movie_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    # MovieLens movieId. The foreign key guarantees the movie exists in the
+    # catalogue. Without ON DELETE, PostgreSQL refuses to delete a movie that
+    # still has ratings, so user data can never be removed by accident.
+    movie_id: Mapped[int] = mapped_column(Integer, ForeignKey("movies.movie_id"), nullable=False)
     # NUMERIC(2,1) stores half-star values exactly (no floating-point drift);
     # asdecimal=False returns Python floats, which serialise as JSON numbers.
     rating: Mapped[float] = mapped_column(Numeric(2, 1, asdecimal=False), nullable=False)

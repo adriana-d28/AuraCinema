@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Response, status
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentUser, DbSession, get_movie_or_404
 from app.schemas.common import MovieIdPath
 from app.schemas.rating import RatingRead, RatingUpsert
 from app.services import rating_service
@@ -23,6 +23,7 @@ def list_my_ratings(current_user: CurrentUser, db: DbSession) -> list[RatingRead
     responses={
         200: {"description": "Existing rating updated"},
         201: {"description": "Rating created"},
+        404: {"description": "Movie not found in the catalogue"},
     },
 )
 def upsert_my_rating(
@@ -32,6 +33,8 @@ def upsert_my_rating(
     db: DbSession,
     response: Response,
 ) -> RatingRead:
+    # Only catalogue movies can be rated (also enforced by a foreign key).
+    get_movie_or_404(db, movie_id)
     # PUT is idempotent: sending the same rating twice leaves the same state.
     # 201 vs 200 tells the client whether a new resource was created.
     rating, created = rating_service.upsert_rating(db, current_user.id, movie_id, payload.rating)
