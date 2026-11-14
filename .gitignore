@@ -4,14 +4,10 @@
 # ML: raw MovieLens 32M dataset and generated processed data (large, never committed).
 ml/data/
 
-# ML phase documentation and generated reports (kept local for now).
-ml/docs/
-
-# Project-level documentation folder at the repository root (kept local for now).
+# Internal project documentation folders at the repository.
 /docs/
-
-# Frontend documentation (kept local for now, like the other docs folders).
 /frontend/docs/
+ml/docs/
 
 # Python and pytest caches inside ml/.
 ml/.pytest_cache/
