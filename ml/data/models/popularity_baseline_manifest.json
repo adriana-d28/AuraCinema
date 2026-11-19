@@ -1,0 +1,152 @@
+{
+  "baseline": {
+    "name": "MovieLens training-set popularity baseline",
+    "version": "1.0.0",
+    "script": "ml/src/popularity_baseline.py",
+    "algorithm": "raw_training_rating_count",
+    "popularity_score": "number of ratings of the movie in ratings_train.csv (popularity_score = rating_count)",
+    "ranking_criteria": [
+      "rating_count descending",
+      "movieId ascending (tie-break)"
+    ],
+    "average_rating": "mean training rating of the movie; complementary information, not used for ranking",
+    "personalised": false,
+    "parameters": null,
+    "random_seed": null
+  },
+  "source": {
+    "dataset": "MovieLens 32M",
+    "dataset_version": "ml-32m (generated 13 October 2023)",
+    "data_pipeline_version": "1.0.0",
+    "dataset_manifest": "dataset_manifest.json",
+    "training_file": "ratings_train.csv",
+    "training_file_sha256": "42948fce3c13bbb4f66c6e6698f2767bb48d28d94512d20cbb0b28e07c5a866d",
+    "catalogue_file": "movies_catalogue.csv",
+    "catalogue_file_sha256": "77c1c347d71789845efb0305331e1c41f493bb89bc5fedc4f558ebb1a60f81df",
+    "test_file_used": false,
+    "identifier": "MovieLens movieId (item_index is not used)"
+  },
+  "counts": {
+    "movies": 5068,
+    "training_ratings": 23313884,
+    "training_users": 198391
+  },
+  "distribution": {
+    "movies": 5068,
+    "training_ratings": 23313884,
+    "rating_count": {
+      "min": 105,
+      "max": 95088,
+      "mean": 4600.21,
+      "median": 1770.5,
+      "std": 7858.97,
+      "coefficient_of_variation": 1.7084,
+      "skewness": 4.5367,
+      "percentiles": {
+        "p1": 288.0,
+        "p5": 562.4,
+        "p10": 630.0,
+        "p25": 903.0,
+        "p50": 1770.5,
+        "p75": 4688.2,
+        "p90": 11181.7,
+        "p95": 17882.5,
+        "p99": 39386.0
+      },
+      "movies_below_threshold": {
+        "200": {
+          "movies": 26,
+          "share": 0.0051
+        },
+        "500": {
+          "movies": 137,
+          "share": 0.027
+        },
+        "1000": {
+          "movies": 1461,
+          "share": 0.2883
+        },
+        "2000": {
+          "movies": 2715,
+          "share": 0.5357
+        },
+        "5000": {
+          "movies": 3867,
+          "share": 0.763
+        },
+        "10000": {
+          "movies": 4470,
+          "share": 0.882
+        }
+      }
+    },
+    "concentration": {
+      "share_of_ratings_in_top_n": {
+        "10": 0.0339,
+        "50": 0.1202,
+        "100": 0.1947,
+        "500": 0.4962,
+        "1000": 0.6763
+      },
+      "movies_needed_for_share": {
+        "0.5": 508,
+        "0.8": 1630,
+        "0.9": 2602
+      },
+      "gini_coefficient": 0.6285
+    },
+    "average_rating": {
+      "global_mean_of_training_ratings": 3.5909,
+      "min": 1.1947,
+      "max": 4.4527,
+      "mean_of_movie_averages": 3.3852,
+      "median": 3.467,
+      "std": 0.4817,
+      "skewness": -0.7412,
+      "percentiles": {
+        "p1": 2.0414,
+        "p5": 2.4872,
+        "p10": 2.7167,
+        "p25": 3.0951,
+        "p50": 3.467,
+        "p75": 3.7516,
+        "p90": 3.9412,
+        "p95": 4.0359,
+        "p99": 4.1621
+      }
+    },
+    "count_vs_average_rating": {
+      "pearson": 0.2501,
+      "pearson_log10_count": 0.2413,
+      "spearman": 0.216
+    }
+  },
+  "validation": {
+    "non_empty_and_numeric": true,
+    "no_missing_or_non_finite_values": true,
+    "movie_ids_positive_integers": true,
+    "movie_ids_unique": true,
+    "ranks_are_1_to_n_without_duplicates": true,
+    "rating_counts_positive_integers": true,
+    "popularity_score_equals_rating_count": true,
+    "average_rating_within_scale": true,
+    "order_is_count_desc_then_movie_id_asc": true,
+    "movies_match_catalogue_exactly": true,
+    "rating_counts_sum_to_training_ratings": true
+  },
+  "run": {
+    "generated_at_utc": "2026-11-13T21:16:54+00:00"
+  },
+  "output": {
+    "file": "popularity_baseline.csv",
+    "rows": 5068,
+    "columns": [
+      "rank",
+      "movieId",
+      "popularity_score",
+      "rating_count",
+      "average_rating"
+    ],
+    "sha256": "51810454cdef6cfe29a4801c951241ad729e9a734bebd1c7ceaeee53b7d0fa95"
+  }
+}

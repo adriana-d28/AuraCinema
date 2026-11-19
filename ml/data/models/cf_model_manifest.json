@@ -1,0 +1,71 @@
+{
+  "model": {
+    "name": "AuraCinema item-based collaborative filtering",
+    "version": "1.0.0",
+    "script": "ml/src/collaborative_filtering.py",
+    "algorithm": "item_based_cf_adjusted_cosine_top_k_positive",
+    "similarity": "adjusted cosine: cosine of user-mean-centred item vectors (unrated = 0)",
+    "neighbours": 50,
+    "neighbour_rule": "top-k positive similarities per movie; ties by smaller movieId; no self",
+    "scoring": "weighted_sum",
+    "scoring_formula": "sum(sim(j,i) * (r_ui - mean_u)) over the rated neighbours of j",
+    "score_meaning": "preference ranking score, not a predicted rating",
+    "unsupported_candidates": "no score (not recommended); no popularity fallback",
+    "identifier": "MovieLens movieId (item_index is internal only)",
+    "random_seed": null
+  },
+  "source": {
+    "dataset": "MovieLens 32M",
+    "data_pipeline_version": "1.0.0",
+    "training_file": "ratings_train.csv",
+    "training_file_sha256": "42948fce3c13bbb4f66c6e6698f2767bb48d28d94512d20cbb0b28e07c5a866d",
+    "catalogue_file_sha256": "77c1c347d71789845efb0305331e1c41f493bb89bc5fedc4f558ebb1a60f81df",
+    "index_map_file": "movie_index_map.csv",
+    "index_map_file_sha256": "a250ba4b5d1982486b25d33be3c25cb1d802556c8bb143771d7aac5d6c74dbd1",
+    "test_file_used": false
+  },
+  "validation": {
+    "file": "cf_validation_results.json",
+    "sha256": "3b7d2d1f92c4b448bd73174f162eb929e3add01503e1524f927a8dce4d6b9546",
+    "selected": {
+      "neighbours": 50,
+      "scoring": "weighted_sum"
+    },
+    "model_matches_selected_configuration": true
+  },
+  "counts": {
+    "users": 198391,
+    "movies": 5068,
+    "training_ratings": 23313884,
+    "users_with_constant_ratings": 479,
+    "movies_with_zero_norm": 0,
+    "stored_similarities": 253400,
+    "neighbours_per_movie": {
+      "min": 50,
+      "median": 50.0,
+      "max": 50,
+      "movies_with_fewer_than_k": 0,
+      "movies_without_neighbours": 0
+    },
+    "similarity_values": {
+      "min": 0.013232,
+      "median": 0.068222,
+      "max": 0.764985
+    }
+  },
+  "run": {
+    "generated_at_utc": "2026-11-19T14:47:33+00:00",
+    "load_seconds": 12.9,
+    "training_seconds": 42.0
+  },
+  "output": {
+    "file": "cf_item_neighbours.npz",
+    "shape": [
+      5068,
+      5068
+    ],
+    "stored_similarities": 253400,
+    "sha256": "643a999314b09312c81badef7e2ec2e4872044e699c1b7d39e5d1a1b24dc4112",
+    "content_sha256": "f361b98dc25ef480d34b0349ab50176feb5fe4be26bc5a45f006aabb069bd2df"
+  }
+}

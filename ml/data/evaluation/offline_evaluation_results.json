@@ -1,0 +1,163 @@
+{
+  "purpose": "final offline evaluation on ratings_test.csv; models fixed before this run",
+  "source": {
+    "dataset": "MovieLens 32M",
+    "data_pipeline_version": "1.0.0",
+    "training_file": "ratings_train.csv",
+    "training_file_sha256": "42948fce3c13bbb4f66c6e6698f2767bb48d28d94512d20cbb0b28e07c5a866d",
+    "catalogue_file_sha256": "77c1c347d71789845efb0305331e1c41f493bb89bc5fedc4f558ebb1a60f81df",
+    "index_map_file": "movie_index_map.csv",
+    "index_map_file_sha256": "a250ba4b5d1982486b25d33be3c25cb1d802556c8bb143771d7aac5d6c74dbd1",
+    "test_file_used": false,
+    "test_file": "ratings_test.csv",
+    "test_file_sha256": "cfcff7e4779bcd3f57593344533e8460ed9e5ee85402adf1cca2ce354e944a88",
+    "cf_model_content_sha256": "f361b98dc25ef480d34b0349ab50176feb5fe4be26bc5a45f006aabb069bd2df",
+    "cf_neighbours": 50,
+    "cf_scoring": "weighted_sum",
+    "popularity_baseline_sha256": "51810454cdef6cfe29a4801c951241ad729e9a734bebd1c7ceaeee53b7d0fa95"
+  },
+  "protocol": {
+    "candidates": "catalogue movies not rated by the user in ratings_train.csv (watchlist not simulated)",
+    "k_values": [
+      5,
+      10,
+      20
+    ],
+    "averaging": "macro (mean of per-user values) over the same users for both algorithms",
+    "short_lists": "precision denominator is always K; CF lists are not filled with other methods"
+  },
+  "population": {
+    "relevance_rule": "held-out rating >= 3.5",
+    "held_out_ratings": 5732440,
+    "held_out_users": 198391,
+    "relevant_ratings": 3577358,
+    "evaluated_users": 195687,
+    "excluded_users_without_relevant_items": 2704,
+    "relevant_items_per_evaluated_user": {
+      "mean": 18.281,
+      "median": 9.0
+    }
+  },
+  "results": {
+    "item_based_cf": {
+      "@5": {
+        "precision": 0.12343487303704387,
+        "recall": 0.05176536915592351,
+        "ndcg": 0.13559080182999916,
+        "users": 195687,
+        "users_with_full_list": 1.0,
+        "catalogue_coverage": 0.705012
+      },
+      "@10": {
+        "precision": 0.10459407114422524,
+        "recall": 0.08353119578376814,
+        "ndcg": 0.13153574691964237,
+        "users": 195687,
+        "users_with_full_list": 1.0,
+        "catalogue_coverage": 0.82794
+      },
+      "@20": {
+        "precision": 0.08631002570431352,
+        "recall": 0.1310878413562562,
+        "ndcg": 0.13762416743505074,
+        "users": 195687,
+        "users_with_full_list": 1.0,
+        "catalogue_coverage": 0.93015
+      }
+    },
+    "popularity": {
+      "@5": {
+        "precision": 0.07563507029082156,
+        "recall": 0.030013464157748714,
+        "ndcg": 0.08172278159519564,
+        "users": 195687,
+        "users_with_full_list": 1.0,
+        "catalogue_coverage": 0.041239
+      },
+      "@10": {
+        "precision": 0.06558943619146904,
+        "recall": 0.050552027323332416,
+        "ndcg": 0.08042194204356552,
+        "users": 195687,
+        "users_with_full_list": 1.0,
+        "catalogue_coverage": 0.062155
+      },
+      "@20": {
+        "precision": 0.05679120227710578,
+        "recall": 0.0861529440583468,
+        "ndcg": 0.08696289217087033,
+        "users": 195687,
+        "users_with_full_list": 1.0,
+        "catalogue_coverage": 0.091358
+      }
+    }
+  },
+  "comparison": {
+    "@5": {
+      "precision": {
+        "cf": 0.12343487303704387,
+        "popularity": 0.07563507029082156,
+        "absolute_difference": 0.04779980274622231,
+        "relative_change_percent": 63.197935246743455
+      },
+      "recall": {
+        "cf": 0.05176536915592351,
+        "popularity": 0.030013464157748714,
+        "absolute_difference": 0.021751904998174795,
+        "relative_change_percent": 72.4738233609032
+      },
+      "ndcg": {
+        "cf": 0.13559080182999916,
+        "popularity": 0.08172278159519564,
+        "absolute_difference": 0.053868020234803526,
+        "relative_change_percent": 65.91554910799849
+      }
+    },
+    "@10": {
+      "precision": {
+        "cf": 0.10459407114422524,
+        "popularity": 0.06558943619146904,
+        "absolute_difference": 0.039004634952756204,
+        "relative_change_percent": 59.46786131671213
+      },
+      "recall": {
+        "cf": 0.08353119578376814,
+        "popularity": 0.050552027323332416,
+        "absolute_difference": 0.03297916846043572,
+        "relative_change_percent": 65.23807294512618
+      },
+      "ndcg": {
+        "cf": 0.13153574691964237,
+        "popularity": 0.08042194204356552,
+        "absolute_difference": 0.05111380487607685,
+        "relative_change_percent": 63.5570387598796
+      }
+    },
+    "@20": {
+      "precision": {
+        "cf": 0.08631002570431352,
+        "popularity": 0.05679120227710578,
+        "absolute_difference": 0.02951882342720774,
+        "relative_change_percent": 51.97781037135686
+      },
+      "recall": {
+        "cf": 0.1310878413562562,
+        "popularity": 0.0861529440583468,
+        "absolute_difference": 0.04493489729790941,
+        "relative_change_percent": 52.15712334505643
+      },
+      "ndcg": {
+        "cf": 0.13762416743505074,
+        "popularity": 0.08696289217087033,
+        "absolute_difference": 0.050661275264180405,
+        "relative_change_percent": 58.25619870672867
+      }
+    }
+  },
+  "run": {
+    "generated_at_utc": "2026-11-19T17:52:04+00:00",
+    "cf_recommendation_seconds": 68.0,
+    "popularity_recommendation_seconds": 136.0,
+    "total_seconds": 244.3
+  }
+}

@@ -68,3 +68,39 @@ def small_config() -> PreparationConfig:
 @pytest.fixture
 def dataset_dir(tmp_path: Path) -> Path:
     return write_dataset(tmp_path / "ml-small", make_ratings(), make_movies(), make_links())
+
+
+@pytest.fixture(scope="session")
+def prepared_models(tmp_path_factory):
+    """Phase 2 outputs + popularity baseline + CF model for 20 synthetic users, built ONCE.
+
+    Shared read-only by the CF and evaluation tests; tests that change files copy them first.
+    Each user rates 6 or 7 of the 7 movies with seeded random ratings, so every movie keeps
+    training ratings after the split.
+    """
+    from types import SimpleNamespace
+
+    from src.collaborative_filtering import run_cf_training
+    from src.popularity_baseline import run_popularity_baseline
+    from src.prepare_data import run_pipeline
+
+    rng = np.random.default_rng(0)
+    movies = make_movies()["movieId"].tolist()
+    rows = []
+    for user in range(1, 21):
+        rated = rng.permutation(movies)[: 6 + user % 2]
+        for i, movie in enumerate(rated):
+            rows.append((user, int(movie), float(rng.choice(np.arange(1, 11)) / 2), 1_000_000_000 + user * 1000 + i))
+    root = tmp_path_factory.mktemp("prepared_models")
+    raw = write_dataset(
+        root / "raw",
+        pd.DataFrame(rows, columns=["userId", "movieId", "rating", "timestamp"]),
+        make_movies(),
+        make_links(),
+    )
+    config = PreparationConfig(top_n_movies=10, genre_floor_movies=0, min_user_ratings=5, test_fraction=0.2)
+    processed, models = root / "processed", root / "models"
+    run_pipeline(raw, processed, root / "data_quality_report.json", config, compare_candidates=False)
+    run_popularity_baseline(processed, models)
+    cf_manifest = run_cf_training(processed, models, n_neighbours=3)
+    return SimpleNamespace(processed=processed, models=models, cf_manifest=cf_manifest)

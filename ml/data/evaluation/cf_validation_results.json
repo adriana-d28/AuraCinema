@@ -1,0 +1,264 @@
+{
+  "purpose": "selection of the CF neighbour count; ratings_test.csv not used",
+  "source": {
+    "dataset": "MovieLens 32M",
+    "data_pipeline_version": "1.0.0",
+    "training_file": "ratings_train.csv",
+    "training_file_sha256": "42948fce3c13bbb4f66c6e6698f2767bb48d28d94512d20cbb0b28e07c5a866d",
+    "catalogue_file_sha256": "77c1c347d71789845efb0305331e1c41f493bb89bc5fedc4f558ebb1a60f81df",
+    "index_map_file": "movie_index_map.csv",
+    "index_map_file_sha256": "a250ba4b5d1982486b25d33be3c25cb1d802556c8bb143771d7aac5d6c74dbd1",
+    "test_file_used": false
+  },
+  "split": {
+    "method": "chronological per user on ratings_train.csv; order (timestamp, movieId); latest floor(n * 0.2) (min 1) ratings per user to validation",
+    "internal_training_ratings": 18729861,
+    "validation_ratings": 4584023,
+    "users": 198391,
+    "internal_training_ratings_per_user_min": 13
+  },
+  "population": {
+    "relevance_rule": "held-out rating >= 3.5",
+    "held_out_ratings": 4584023,
+    "held_out_users": 198391,
+    "relevant_ratings": 2846540,
+    "evaluated_users": 194117,
+    "excluded_users_without_relevant_items": 4274,
+    "relevant_items_per_evaluated_user": {
+      "mean": 14.664,
+      "median": 8.0
+    }
+  },
+  "k_values": [
+    5,
+    10,
+    20
+  ],
+  "selection_rule": "highest ndcg@10; exact tie -> fewer neighbours",
+  "scoring_rules": {
+    "weighted_sum": "sum(sim(j,i) * (r_ui - mean_u)) over rated neighbours of j",
+    "weighted_average": "mean_u + sum(sim * (r_ui - mean_u)) / sum(|sim|) (formula of the project brief)"
+  },
+  "similarity_seconds_for_largest_k": 40.1,
+  "internal_model_counts": {
+    "users": 198391,
+    "movies": 5068,
+    "training_ratings": 18729861,
+    "users_with_constant_ratings": 595,
+    "movies_with_zero_norm": 0,
+    "stored_similarities": 506800,
+    "neighbours_per_movie": {
+      "min": 100,
+      "median": 100.0,
+      "max": 100,
+      "movies_with_fewer_than_k": 0,
+      "movies_without_neighbours": 0
+    },
+    "similarity_values": {
+      "min": 0.008205,
+      "median": 0.048896,
+      "max": 0.746647
+    }
+  },
+  "results": {
+    "weighted_sum/k=20": {
+      "scoring": "weighted_sum",
+      "neighbours": 20,
+      "metrics": {
+        "@5": {
+          "precision": 0.10322125316175296,
+          "recall": 0.05663209463624986,
+          "ndcg": 0.1160864227323164,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.745659
+        },
+        "@10": {
+          "precision": 0.08783362611208705,
+          "recall": 0.09077098000404524,
+          "ndcg": 0.11751415371587651,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.878256
+        },
+        "@20": {
+          "precision": 0.07268503016222176,
+          "recall": 0.14096469372874923,
+          "ndcg": 0.12847848493816688,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.971784
+        }
+      },
+      "stored_similarities": 101360,
+      "recommendation_seconds": 66.0
+    },
+    "weighted_average/k=20": {
+      "scoring": "weighted_average",
+      "neighbours": 20,
+      "metrics": {
+        "@5": {
+          "precision": 0.011470401871036541,
+          "recall": 0.008475421766016272,
+          "ndcg": 0.012805014862103534,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.922455
+        },
+        "@10": {
+          "precision": 0.011655341881442636,
+          "recall": 0.016867067128076972,
+          "ndcg": 0.015841313543157168,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.983031
+        },
+        "@20": {
+          "precision": 0.011737766398615268,
+          "recall": 0.03187449675727221,
+          "ndcg": 0.021437919908366528,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.999605
+        }
+      },
+      "stored_similarities": 101360,
+      "recommendation_seconds": 69.0
+    },
+    "weighted_sum/k=50": {
+      "scoring": "weighted_sum",
+      "neighbours": 50,
+      "metrics": {
+        "@5": {
+          "precision": 0.10401458913953955,
+          "recall": 0.05699611300119171,
+          "ndcg": 0.11705717741474005,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.735991
+        },
+        "@10": {
+          "precision": 0.08861665902522706,
+          "recall": 0.09108839483320531,
+          "ndcg": 0.1184550412445907,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.86247
+        },
+        "@20": {
+          "precision": 0.07316309236182303,
+          "recall": 0.14080330575377667,
+          "ndcg": 0.12917212687416568,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.955406
+        }
+      },
+      "stored_similarities": 253400,
+      "recommendation_seconds": 76.9
+    },
+    "weighted_average/k=50": {
+      "scoring": "weighted_average",
+      "neighbours": 50,
+      "metrics": {
+        "@5": {
+          "precision": 0.004857894980862057,
+          "recall": 0.003952318394230855,
+          "ndcg": 0.005541205524461678,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.938437
+        },
+        "@10": {
+          "precision": 0.004907864844397966,
+          "recall": 0.007694546015782122,
+          "ndcg": 0.006949879019836637,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.985793
+        },
+        "@20": {
+          "precision": 0.00486897077535713,
+          "recall": 0.014235541781332154,
+          "ndcg": 0.009403624505154353,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.999408
+        }
+      },
+      "stored_similarities": 253400,
+      "recommendation_seconds": 85.0
+    },
+    "weighted_sum/k=100": {
+      "scoring": "weighted_sum",
+      "neighbours": 100,
+      "metrics": {
+        "@5": {
+          "precision": 0.10380028539489072,
+          "recall": 0.056940605632718834,
+          "ndcg": 0.11696155980381213,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.73895
+        },
+        "@10": {
+          "precision": 0.08800826305784656,
+          "recall": 0.09049897491681123,
+          "ndcg": 0.11789092168937017,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.85438
+        },
+        "@20": {
+          "precision": 0.07255186305166472,
+          "recall": 0.13970516195851895,
+          "ndcg": 0.12841025930886713,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.948895
+        }
+      },
+      "stored_similarities": 506800,
+      "recommendation_seconds": 104.4
+    },
+    "weighted_average/k=100": {
+      "scoring": "weighted_average",
+      "neighbours": 100,
+      "metrics": {
+        "@5": {
+          "precision": 0.0024912810315428327,
+          "recall": 0.002076663058258946,
+          "ndcg": 0.0028946338094420023,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.955801
+        },
+        "@10": {
+          "precision": 0.0025484630403313467,
+          "recall": 0.0041381563734849015,
+          "ndcg": 0.003702120509078687,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 0.99487
+        },
+        "@20": {
+          "precision": 0.002597917750634926,
+          "recall": 0.0074606775718776925,
+          "ndcg": 0.005006722413791119,
+          "users": 194117,
+          "users_with_full_list": 1.0,
+          "catalogue_coverage": 1.0
+        }
+      },
+      "stored_similarities": 506800,
+      "recommendation_seconds": 104.2
+    }
+  },
+  "selected_configuration": "weighted_sum/k=50",
+  "selected_scoring": "weighted_sum",
+  "selected_neighbours": 50,
+  "run": {
+    "generated_at_utc": "2026-11-19T14:40:58+00:00",
+    "total_seconds": 583.8
+  }
+}

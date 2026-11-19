@@ -2,6 +2,8 @@
 # Versions match the "AuraCinema" conda environment used for the EDA notebook.
 pandas==3.0.6
 numpy==2.5.2
+# Sparse matrices for item-based collaborative filtering (ml/src/collaborative_filtering.py).
+scipy==1.18.1
 
 # Testing
 pytest>=8.4,<9.0

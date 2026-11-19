@@ -2,7 +2,9 @@
 .vscode/
 
 # ML: raw MovieLens 32M dataset and generated processed data (large, never committed).
-ml/data/
+# ml/data/models/ and ml/data/evaluation/ (trained models and results) are tracked.
+ml/data/ml-32m/
+ml/data/processed/
 
 # Internal project documentation folders at the repository.
 /docs/
