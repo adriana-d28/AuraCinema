@@ -1,0 +1,43 @@
+/* Profile column on the left, account and session on the right (desktop), as in the wireframe. */
+.layout {
+  display: grid;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.picture {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.picturePreview {
+  width: 4rem;
+  height: 4rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-full);
+  background: linear-gradient(160deg, var(--color-accent-deep), var(--color-surface) 75%);
+}
+
+.note {
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+}

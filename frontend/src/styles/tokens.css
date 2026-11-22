@@ -1,0 +1,136 @@
+/*
+ * AuraCinema design tokens.
+ *
+ * Every colour, font, size, space, radius, shadow and animation speed used by
+ * the application is defined here, once, as a CSS variable ("custom property").
+ * Components never write raw values such as #80343D; they write
+ * var(--color-accent). Changing a value in this file therefore changes it
+ * everywhere at the same time, and pages cannot drift apart visually.
+ *
+ * Visual direction: "Noir Cinema + Film Archive". A dark charcoal base, warm
+ * ivory text, burgundy as the only strong accent, and muted gold used rarely
+ * for small editorial details. Contrast ratios are listed in
+ * frontend/docs/ui_ux_design_specification.md (section 5).
+ */
+
+:root {
+  /* ---------- Colour: backgrounds, from darkest to lightest ---------- */
+  --color-bg: #121212;            /* Page background (near-black charcoal, not pure black) */
+  --color-bg-raised: #1b1b1b;     /* Header, footer and large page bands */
+  --color-surface: #242424;       /* Cards, panels and form fields */
+  --color-surface-hover: #2e2e2e; /* Surfaces under the mouse pointer */
+  --color-border: #3a3a3a;        /* Thin lines around surfaces and fields */
+  --color-border-subtle: #2a2a2a; /* Very quiet dividers */
+
+  /* ---------- Colour: text ---------- */
+  --color-text: #f2eee8;          /* Warm ivory: main text (not pure white) */
+  --color-text-muted: #b5b0aa;    /* Muted grey: metadata and secondary text */
+  --color-text-faint: #8f8a84;    /* Hints and disabled labels (still readable) */
+
+  /* ---------- Colour: accents ---------- */
+  --color-accent: #80343d;        /* Burgundy: primary buttons and highlights */
+  --color-accent-hover: #943f49;  /* Burgundy, a little brighter, for hover */
+  --color-accent-deep: #54252c;   /* Dark burgundy: gradients and tinted panels */
+  --color-accent-bright: #c25b67; /* Light burgundy: thin lines on dark (active link, stars) */
+  --color-gold: #b59a70;          /* Muted gold: small editorial labels and dividers only */
+  --color-on-accent: #f2eee8;     /* Text placed on top of burgundy */
+
+  /* Keyboard focus outline. Gold is used because it stays clearly visible on
+     every background of the palette (dark surfaces and burgundy buttons). */
+  --color-focus: #b59a70;
+
+  /* Overlay used on top of blurred posters, so text stays readable. */
+  --color-overlay: rgb(18 18 18 / 0.72);
+
+  /* ---------- Typography ---------- */
+  /* Inter: clean interface text. Playfair Display: editorial headings (the
+     "retro" touch). Fallback fonts are listed in case the web fonts fail. */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+
+  /* Type scale. clamp(min, preferred, max) lets the largest sizes shrink
+     smoothly on small screens without extra media queries. */
+  --text-xs: 0.75rem;    /* 12px: eyebrow labels, badges */
+  --text-sm: 0.875rem;   /* 14px: metadata, hints */
+  --text-base: 1rem;     /* 16px: body text, inputs */
+  --text-lg: 1.125rem;   /* 18px: lead paragraphs, card titles in large cards */
+  --text-xl: 1.5rem;     /* 24px: section headings */
+  --text-2xl: clamp(1.75rem, 1.4rem + 1.5vw, 2.5rem);  /* page titles */
+  --text-3xl: clamp(2.25rem, 1.6rem + 3vw, 3.75rem);   /* hero movie title */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --leading-tight: 1.15; /* headings */
+  --leading-normal: 1.55; /* body text */
+
+  /* Letter spacing for the small upper-case "eyebrow" labels (editorial style). */
+  --tracking-label: 0.14em;
+
+  /* ---------- Spacing (4px base scale) ---------- */
+  --space-1: 0.25rem;  /* 4px */
+  --space-2: 0.5rem;   /* 8px */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px */
+  --space-5: 1.5rem;   /* 24px */
+  --space-6: 2rem;     /* 32px */
+  --space-7: 3rem;     /* 48px */
+  --space-8: 4rem;     /* 64px */
+
+  /* ---------- Layout ---------- */
+  --layout-max-width: 77.5rem; /* 1240px: content never gets wider than this */
+  --layout-gutter: var(--space-4); /* Side padding; grows on larger screens (below) */
+  --header-height: 4rem;
+
+  /* Smallest width of a poster card in grids (the grid adds columns as space allows). */
+  --poster-min-width: 8.5rem; /* 136px: still two columns on a 320px-wide phone */
+  /* Movie posters from TMDB are portrait images with a 2:3 shape. */
+  --poster-ratio: 2 / 3;
+
+  /* ---------- Shape ---------- */
+  --radius-sm: 4px;   /* Badges, small controls */
+  --radius-md: 8px;   /* Buttons, inputs, posters */
+  --radius-lg: 14px;  /* Panels and the hero */
+  --radius-full: 999px; /* Pills and round avatars */
+
+  /* ---------- Depth ---------- */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 8px 20px rgb(0 0 0 / 0.45);
+  --shadow-poster: 0 18px 40px rgb(0 0 0 / 0.6); /* Large "floating" poster in the hero */
+
+  /* ---------- Motion ---------- */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/*
+ * Responsive breakpoints. CSS variables cannot be used inside @media
+ * conditions, so the breakpoints are written as numbers in the media queries
+ * and documented here in one place:
+ *   - mobile:  below 640px   (default styles: "mobile first")
+ *   - tablet:  640px and up
+ *   - desktop: 1024px and up
+ */
+@media (min-width: 640px) {
+  :root {
+    --layout-gutter: var(--space-5);
+    --poster-min-width: 9.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --layout-gutter: var(--space-6);
+    --poster-min-width: 10.5rem;
+  }
+}
+
+/* Users who ask their system for less motion get (almost) instant transitions. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 1ms;
+    --duration-normal: 1ms;
+  }
+}

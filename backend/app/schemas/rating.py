@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.rating import MAX_RATING, MIN_RATING, RATING_STEP
+from app.schemas.movie import MovieSummaryRead
 
 
 class RatingUpsert(BaseModel):
@@ -29,9 +30,12 @@ class RatingUpsert(BaseModel):
 
 
 class RatingRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """One of the user's ratings, with the rated movie as it is shown in lists."""
 
     movie_id: int
     rating: float
     created_at: datetime
     rated_at: datetime
+    # Title, display title, genres and poster of the rated movie, so the
+    # profile's "recent ratings" need no extra request per movie.
+    movie: MovieSummaryRead

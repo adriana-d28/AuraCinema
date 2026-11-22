@@ -1,0 +1,78 @@
+.searchSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Search box and Filters button: stacked on phones, side by side from tablet. */
+.searchRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@media (min-width: 640px) {
+  .searchRow {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .filters {
+    padding-top: var(--space-1);
+  }
+}
+
+/* ---------- Genre chips ---------- */
+.genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.genreChip {
+  min-height: 2.25rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+/* Planned feature: dashed outline, as for every "coming soon" element. */
+.genreChip:disabled {
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+/* ---------- Catalogue grid ---------- */
+.catalogue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/*
+ * Responsive poster grid without media queries: "auto-fill" creates as many
+ * columns as fit, each at least --poster-min-width wide (set per breakpoint in
+ * tokens.css). Result: 2 columns on phones, about 4 on tablets, 6 on desktop.
+ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--poster-min-width), 1fr));
+  gap: var(--space-6) var(--space-4);
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    column-gap: var(--space-5);
+  }
+}

@@ -22,12 +22,13 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     return db.scalar(select(User).where(User.email == email))
 
 
-def register_user(db: Session, email: str, password: str) -> User:
-    """Create an account. `email` must already be normalised by the schema."""
+def register_user(db: Session, email: str, password: str, name: str) -> User:
+    """Create an account. `email` and `name` must already be validated and
+    normalised by the schema (RegisterRequest)."""
     if get_user_by_email(db, email) is not None:
         raise EmailAlreadyRegisteredError
 
-    user = User(email=email, password_hash=hash_password(password))
+    user = User(email=email, password_hash=hash_password(password), name=name)
     db.add(user)
     try:
         db.commit()

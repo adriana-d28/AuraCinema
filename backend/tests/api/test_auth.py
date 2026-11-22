@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token
 from app.models import User
-from tests.helpers import TEST_PASSWORD, auth_headers, login, register_user
+from tests.helpers import TEST_NAME, TEST_PASSWORD, auth_headers, login, register_user
 
 pytestmark = pytest.mark.db
 
@@ -22,8 +22,10 @@ class TestRegistration:
         response = register_user(client, "new@example.com")
         assert response.status_code == 201
         body = response.json()
-        assert set(body) == {"id", "email", "created_at"}
+        assert set(body) == {"id", "email", "created_at", "name", "location", "bio"}
         assert body["email"] == "new@example.com"
+        # The required name is stored (trimmed); location and bio start empty.
+        assert (body["name"], body["location"], body["bio"]) == (TEST_NAME, None, None)
         assert TEST_PASSWORD not in response.text
 
     def test_password_is_stored_hashed(self, client: TestClient, db_session: Session):
@@ -58,7 +60,11 @@ class TestRegistration:
             {"password": TEST_PASSWORD},
             {},
             {"email": 123, "password": TEST_PASSWORD},
-            {"email": "a@example.com", "password": TEST_PASSWORD, "id": 1},
+            {"email": "a@example.com", "password": TEST_PASSWORD, "name": "A", "id": 1},
+            # The name is required (intermediate backend phase), and blank is not a name.
+            {"email": "a@example.com", "password": TEST_PASSWORD},
+            {"email": "a@example.com", "password": TEST_PASSWORD, "name": "   "},
+            {"email": "a@example.com", "password": TEST_PASSWORD, "name": "x" * 101},
         ],
     )
     def test_invalid_registration_payloads_are_rejected(self, client: TestClient, payload):
@@ -157,6 +163,11 @@ class TestCurrentUser:
         ("method", "url"),
         [
             ("get", "/api/v1/users/me"),
+            # Account endpoints added in the intermediate backend phase.
+            ("patch", "/api/v1/users/me"),
+            ("put", "/api/v1/users/me/email"),
+            ("put", "/api/v1/users/me/password"),
+            ("get", "/api/v1/users/me/stats"),
             ("get", "/api/v1/ratings"),
             ("put", "/api/v1/ratings/1"),
             ("delete", "/api/v1/ratings/1"),

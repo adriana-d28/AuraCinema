@@ -6,18 +6,22 @@ local movie_metadata table, which is filled by maintenance scripts. Normal
 requests therefore never depend on TMDB being available.
 """
 
+from collections import Counter
 from collections.abc import Sequence
+from datetime import date
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.titles import normalize_text
-from app.models.movie import Movie
-from app.models.movie_metadata import MovieMetadata, RefreshStatus
+from app.models.movie import Movie, split_genres
+from app.models.movie_metadata import MovieMetadata, RefreshStatus, TmdbIdValidationStatus
 from app.schemas.movie import (
+    GenreRead,
     MetadataStatus,
     MovieDetailsRead,
     MovieRead,
+    MovieSummaryRead,
     RecommendedMovieRead,
 )
 from app.services.tmdb_service import build_poster_url
@@ -30,7 +34,7 @@ def _escape_like(text: str) -> str:
 
 
 def list_movies(
-    db: Session, search: str | None, limit: int, offset: int
+    db: Session, search: str | None, limit: int, offset: int, genre: str | None = None
 ) -> tuple[list[Movie], int]:
     """Return one page of movies and the total number of matches.
 
@@ -38,8 +42,14 @@ def list_movies(
     accents or punctuation, see app.core.titles) and matched as a "contains"
     condition, so "the matrix", "MATRIX" and "matrix, the" all find
     "Matrix, The (1999)". A search made only of punctuation matches nothing.
+
+    `genre` keeps only movies that have exactly that MovieLens genre. It must
+    be one of catalogue_genres() (the route checks this). Search and genre can
+    be combined; both conditions must then hold.
+
     Results are ordered by title, then movie_id, so pages are stable. Only the
-    requested page is loaded from the database.
+    requested page is loaded from the database, together with the stored
+    metadata of those movies (one extra query), so list items can show posters.
     """
     statement = select(Movie)
     count_statement = select(func.count()).select_from(Movie)
@@ -50,10 +60,86 @@ def list_movies(
         condition = Movie.search_title.like(f"%{_escape_like(normalized)}%", escape="\\")
         statement = statement.where(condition)
         count_statement = count_statement.where(condition)
+    if genre:
+        # genres is stored in the MovieLens format "Action|Sci-Fi|Thriller".
+        # Adding a "|" on both sides lets one pattern match the first, a middle
+        # or the last genre, and never a part of another genre's name.
+        # The value is a bound parameter, so it can never act as SQL.
+        condition = func.concat("|", Movie.genres, "|").like(
+            f"%|{_escape_like(genre)}|%", escape="\\"
+        )
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
 
     total = db.scalar(count_statement) or 0
-    page = db.scalars(statement.order_by(Movie.title, Movie.movie_id).limit(limit).offset(offset))
+    page = db.scalars(
+        statement.options(selectinload(Movie.movie_metadata))
+        .order_by(Movie.title, Movie.movie_id)
+        .limit(limit)
+        .offset(offset)
+    )
     return list(page), total
+
+
+def build_movie_summary(movie: Movie) -> MovieSummaryRead:
+    """Catalogue data plus the stored poster, for list items.
+
+    Uses the same poster rule as the recommendation list: the stored
+    poster_path, or null (placeholder) when nothing is stored.
+    """
+    metadata = movie.movie_metadata
+    poster_path = metadata.poster_path if metadata is not None else None
+    return MovieSummaryRead(
+        **MovieRead.from_movie(movie).model_dump(), poster_url=build_poster_url(poster_path)
+    )
+
+
+def catalogue_genres(db: Session) -> list[GenreRead]:
+    """Every genre used in the catalogue, with its number of movies, by name.
+
+    The genres are read from the catalogue itself instead of a fixed list, so
+    they always match the imported MovieLens data. The MovieLens marker
+    "(no genres listed)" is not a genre and is left out (Movie.genre_list()).
+    IMAX is a MovieLens value too and is therefore listed; hiding it is a
+    presentation choice of the frontend. Counting 5,068 short strings in
+    Python is fast and keeps the rule in one place (genre_list).
+    """
+    counts = Counter(
+        genre for genres in db.scalars(select(Movie.genres)) for genre in split_genres(genres)
+    )
+    return [GenreRead(genre=genre, movie_count=counts[genre]) for genre in sorted(counts)]
+
+
+def get_featured_movie(db: Session, today: date) -> Movie | None:
+    """The catalogue movie featured on Discover for `today` (None if none qualifies).
+
+    Not a ranking: popularity, ratings and recommendations are not used, so
+    Discover never repeats the popular list shown on the Recommendations page.
+    The rule is a plain daily rotation:
+      1. eligible movies are those with complete stored metadata for a hero
+         (a poster and an overview) whose TMDB ID was confirmed as `valid` by
+         the validation script, so the hero never shows a doubtful poster;
+      2. they are ordered by movie_id, and the movie at position
+         (day number of `today`) modulo (number of eligible movies) is chosen.
+    The same movie is therefore shown all day, and the next day shows the next
+    one. `today` is a parameter so tests can use a fixed date.
+    """
+    eligible_ids = list(
+        db.scalars(
+            select(MovieMetadata.movie_id)
+            .where(
+                MovieMetadata.metadata_updated_at.is_not(None),
+                MovieMetadata.poster_path.is_not(None),
+                MovieMetadata.overview.is_not(None),
+                MovieMetadata.tmdb_validation_status == TmdbIdValidationStatus.VALID.value,
+            )
+            .order_by(MovieMetadata.movie_id)
+        )
+    )
+    if not eligible_ids:
+        return None
+    chosen_id = eligible_ids[today.toordinal() % len(eligible_ids)]
+    return db.get(Movie, chosen_id)
 
 
 def metadata_status_for(movie: Movie, metadata: MovieMetadata | None) -> MetadataStatus:

@@ -2,6 +2,8 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
 
+from app.schemas.common import ProfileName
+
 # Passwords: NIST SP 800-63B (revision 4) requires at least 15 characters when
 # a password is the only authentication factor, as it is here, and asks that
 # at least 64 characters be allowed. The 128 maximum bounds hashing cost and
@@ -26,6 +28,16 @@ class RegisterRequest(BaseModel):
 
     email: NormalisedEmail
     password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+    # Required for new accounts (student decision, intermediate backend phase);
+    # it can be changed later in Settings. 1-100 characters after trimming.
+    name: ProfileName
+
+
+# Shared by the password fields of the account endpoints (users.py): a current
+# password is only compared with the stored hash, but its length is still
+# bounded so an absurdly large value is rejected before hashing.
+CurrentPassword = Annotated[str, Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)]
+NewPassword = Annotated[str, Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)]
 
 
 class TokenResponse(BaseModel):

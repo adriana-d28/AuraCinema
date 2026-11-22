@@ -18,7 +18,11 @@ def test_add_movie_returns_201(client: TestClient, alice_headers):
     assert response.status_code == 201
     body = response.json()
     assert body["movie_id"] == 2571
-    assert set(body) == {"movie_id", "added_at"}
+    assert set(body) == {"movie_id", "added_at", "movie"}
+    # Intermediate backend phase: the movie as shown in lists (no metadata
+    # stored in this test, so the poster is null and the UI shows a placeholder).
+    assert (body["movie"]["display_title"], body["movie"]["year"]) == ("The Matrix", 1999)
+    assert body["movie"]["poster_url"] is None
 
 
 def test_duplicate_addition_returns_200_and_keeps_one_entry(

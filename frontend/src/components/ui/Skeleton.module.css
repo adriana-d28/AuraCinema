@@ -1,0 +1,39 @@
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  /* A lighter band moves slowly across a dark surface. */
+  background: linear-gradient(
+    100deg,
+    var(--color-surface) 30%,
+    var(--color-surface-hover) 50%,
+    var(--color-surface) 70%
+  );
+  background-size: 300% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.text {
+  height: 0.9em;
+  width: 100%;
+}
+
+.poster {
+  width: 100%;
+  aspect-ratio: var(--poster-ratio);
+  border-radius: var(--radius-md);
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}

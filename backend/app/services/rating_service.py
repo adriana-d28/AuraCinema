@@ -7,15 +7,31 @@ another user's ratings.
 
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
+from app.models.movie import Movie
 from app.models.rating import Rating
 from app.models.utils import utc_now
 
 
 def list_ratings(db: Session, user_id: int) -> list[Rating]:
+    # Used by the recommendation service, which needs only movie IDs and
+    # values, so the movies are deliberately not loaded here.
     statement = (
         select(Rating).where(Rating.user_id == user_id).order_by(Rating.rated_at.desc(), Rating.id)
+    )
+    return list(db.scalars(statement))
+
+
+def list_ratings_with_movies(db: Session, user_id: int) -> list[Rating]:
+    """Same list and order as list_ratings(), with each rated movie and its
+    stored metadata loaded in two extra queries (no query per rating), for
+    API responses that show titles and posters."""
+    statement = (
+        select(Rating)
+        .where(Rating.user_id == user_id)
+        .options(selectinload(Rating.movie).selectinload(Movie.movie_metadata))
+        .order_by(Rating.rated_at.desc(), Rating.id)
     )
     return list(db.scalars(statement))
 

@@ -6,7 +6,8 @@ refresh script would do. TMDB is never contacted: the `no_tmdb` fixture makes
 any attempt to create a TMDB client during a request fail the test.
 """
 
-from datetime import UTC, date, datetime
+from collections import Counter
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,14 +16,16 @@ from sqlalchemy.orm import Session
 
 from app.core.titles import normalize_text
 from app.models import Movie, MovieMetadata
-from app.services import tmdb_service
+from app.services import movie_service, tmdb_service
 from tests.helpers import TEST_MOVIES, UNKNOWN_MOVIE_ID
 
 pytestmark = pytest.mark.db
 
 MOVIES_URL = "/api/v1/movies"
 
-MOVIE_FIELDS = {"movie_id", "title", "genres", "tmdb_id", "imdb_id"}
+MOVIE_FIELDS = {"movie_id", "title", "display_title", "year", "genres", "tmdb_id", "imdb_id"}
+# List items (catalogue pages) also carry the stored poster.
+SUMMARY_FIELDS = MOVIE_FIELDS | {"poster_url"}
 METADATA_FIELDS = {
     "overview",
     "release_date",
@@ -83,7 +86,7 @@ def test_list_movies_returns_first_page_with_pagination_info(client: TestClient)
     assert body["total"] == len(TEST_MOVIES)
     assert (body["limit"], body["offset"]) == (20, 0)
     assert len(body["items"]) == len(TEST_MOVIES)
-    assert set(body["items"][0]) == MOVIE_FIELDS
+    assert set(body["items"][0]) == SUMMARY_FIELDS
 
 
 def collation_order(titles) -> list[str]:
@@ -104,9 +107,12 @@ def test_movie_fields_and_genre_list(client: TestClient):
         {
             "movie_id": 1,
             "title": "Toy Story (1995)",
+            "display_title": "Toy Story",
+            "year": 1995,
             "genres": ["Adventure", "Animation", "Children", "Comedy", "Fantasy"],
             "tmdb_id": 862,
             "imdb_id": 114709,
+            "poster_url": None,  # No metadata stored in this test.
         }
     ]
 
@@ -267,6 +273,8 @@ def test_get_movie_by_movielens_id(client: TestClient):
     assert response.json() == {
         "movie_id": 2571,
         "title": "Matrix, The (1999)",
+        "display_title": "The Matrix",  # Trailing article moved back for display.
+        "year": 1999,
         "genres": ["Action", "Sci-Fi", "Thriller"],
         "tmdb_id": 603,
         "imdb_id": 133093,
@@ -308,6 +316,8 @@ def test_details_combine_local_data_with_stored_metadata(client: TestClient, db_
     assert response.json() == {
         "movie_id": 1,
         "title": "Toy Story (1995)",  # MovieLens title kept.
+        "display_title": "Toy Story",
+        "year": 1995,
         "genres": ["Adventure", "Animation", "Children", "Comedy", "Fantasy"],
         "tmdb_id": 862,
         "imdb_id": 114709,
@@ -410,10 +420,79 @@ def test_details_have_the_same_fields_in_every_state(client: TestClient, db_sess
         assert set(body) == MOVIE_FIELDS | METADATA_FIELDS
 
 
-def test_list_endpoint_is_unchanged_by_stored_metadata(client: TestClient, db_session):
+def test_list_items_show_the_stored_poster_or_null(client: TestClient, db_session):
+    """Since the intermediate backend phase, catalogue pages carry the stored
+    poster, so a grid needs no /details request per movie (no TMDB call)."""
     store_metadata(db_session, 1)
-    items = client.get(MOVIES_URL, params={"search": "toy story 1995"}).json()["items"]
-    assert set(items[0]) == MOVIE_FIELDS
+    items = client.get(MOVIES_URL, params={"search": "toy story"}).json()["items"]
+    posters = {item["movie_id"]: item["poster_url"] for item in items}
+    assert posters == {
+        1: "https://image.tmdb.org/t/p/w500/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg",
+        3114: None,  # No metadata stored: the frontend shows its placeholder.
+        78499: None,
+    }
+
+
+# --- GET /movies/genres and the genre filter (intermediate backend phase) ---
+
+
+def test_genre_list_counts_the_catalogue_genres(client: TestClient):
+    response = client.get(f"{MOVIES_URL}/genres")
+    assert response.status_code == 200
+    expected = Counter(g for _, _, genres, _, _ in TEST_MOVIES for g in genres.split("|"))
+    # Ordered by name; IMAX is a MovieLens value, so it is listed (Toy Story 3).
+    assert response.json() == [
+        {"genre": genre, "movie_count": expected[genre]} for genre in sorted(expected)
+    ]
+    assert {"genre": "IMAX", "movie_count": 1} in response.json()
+
+
+def test_genre_filter_combines_with_search_and_rejects_unknown_genres(client: TestClient):
+    def ids(**params):
+        response = client.get(MOVIES_URL, params={"limit": 100, **params})
+        assert response.status_code == 200
+        return [movie["movie_id"] for movie in response.json()["items"]], response.json()["total"]
+
+    assert ids(genre="Animation") == ([1, 3114, 78499], 3)
+    # "|" boundaries: the last genre of a string matches, and search is ANDed.
+    assert ids(genre="IMAX", search="toy story") == ([78499], 1)
+    assert ids(genre="Sci-Fi", search="toy story") == ([], 0)
+
+    # Only exact names from /movies/genres are accepted; a part of a name is not.
+    for unknown in ("Sci", "drama", "%"):
+        response = client.get(MOVIES_URL, params={"genre": unknown})
+        assert response.status_code == 422
+        assert response.json()["detail"][0]["loc"] == ["query", "genre"]
+
+
+# --- GET /movies/featured (intermediate backend phase) ----------------------
+
+
+def test_featured_movie_rotates_daily_over_complete_validated_metadata(
+    client: TestClient, db_session: Session
+):
+    # Not eligible: no featured movie yet, so the endpoint answers 404.
+    store_metadata(db_session, 5, tmdb_validation_status="not_checked")
+    store_metadata(db_session, 6, tmdb_validation_status="valid", poster_path=None)
+    assert client.get(f"{MOVIES_URL}/featured").status_code == 404
+
+    # Eligible: poster + overview + validated ID.
+    store_metadata(db_session, 1, tmdb_validation_status="valid")
+    store_metadata(db_session, 2, tmdb_validation_status="valid")
+
+    response = client.get(f"{MOVIES_URL}/featured")
+    assert response.status_code == 200
+    assert response.json()["movie_id"] in {1, 2}
+    assert response.json()["metadata_status"] == "available"
+
+    # Fixed dates: the same movie all day, the other one the next day.
+    day = date(2026, 11, 22)
+    first = movie_service.get_featured_movie(db_session, day).movie_id
+    assert movie_service.get_featured_movie(db_session, day).movie_id == first
+    assert (
+        movie_service.get_featured_movie(db_session, day + timedelta(days=1)).movie_id
+        == ({1, 2} - {first}).pop()
+    )
 
 
 # --- OpenAPI documentation --------------------------------------------------
@@ -424,12 +503,14 @@ def test_movie_endpoints_are_documented_in_openapi(client: TestClient):
     paths = schema["paths"]
     assert {
         "/api/v1/movies",
+        "/api/v1/movies/genres",
+        "/api/v1/movies/featured",
         "/api/v1/movies/{movie_id}",
         "/api/v1/movies/{movie_id}/details",
     } <= set(paths)
 
     list_params = {p["name"] for p in paths["/api/v1/movies"]["get"]["parameters"]}
-    assert list_params == {"search", "limit", "offset"}
+    assert list_params == {"search", "genre", "limit", "offset"}
     assert "404" in paths["/api/v1/movies/{movie_id}/details"]["get"]["responses"]
     components = set(schema["components"]["schemas"])
     assert {"MovieRead", "MovieListResponse", "MovieDetailsRead", "MetadataStatus"} <= components

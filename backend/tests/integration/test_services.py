@@ -14,7 +14,7 @@ PASSWORD = "service-test-password"
 
 @pytest.fixture
 def user(db_session: Session) -> User:
-    return auth_service.register_user(db_session, "svc@example.com", PASSWORD)
+    return auth_service.register_user(db_session, "svc@example.com", PASSWORD, "Test User")
 
 
 class TestAuthService:
@@ -26,7 +26,7 @@ class TestAuthService:
 
     def test_register_duplicate_email_raises(self, db_session: Session, user: User):
         with pytest.raises(auth_service.EmailAlreadyRegisteredError):
-            auth_service.register_user(db_session, "svc@example.com", PASSWORD)
+            auth_service.register_user(db_session, "svc@example.com", PASSWORD, "Test User")
 
     def test_concurrent_duplicate_registration_is_caught_by_constraint(
         self, db_session: Session, user: User, monkeypatch
@@ -35,7 +35,7 @@ class TestAuthService:
         constraint still prevents the duplicate and a clean error is raised."""
         monkeypatch.setattr(auth_service, "get_user_by_email", lambda *args: None)
         with pytest.raises(auth_service.EmailAlreadyRegisteredError):
-            auth_service.register_user(db_session, "svc@example.com", PASSWORD)
+            auth_service.register_user(db_session, "svc@example.com", PASSWORD, "Test User")
         assert db_session.scalar(select(func.count()).select_from(User)) == 1
 
     def test_authenticate_with_valid_credentials(self, db_session: Session, user: User):
@@ -94,7 +94,7 @@ class TestRatingService:
         assert rating_service.delete_rating(db_session, user.id, 30) is False
 
     def test_list_is_scoped_to_the_user(self, db_session: Session, user: User):
-        other = auth_service.register_user(db_session, "other@example.com", PASSWORD)
+        other = auth_service.register_user(db_session, "other@example.com", PASSWORD, "Test User")
         rating_service.upsert_rating(db_session, user.id, 1, 4.0)
         rating_service.upsert_rating(db_session, other.id, 2, 3.0)
         assert [r.movie_id for r in rating_service.list_ratings(db_session, user.id)] == [1]
@@ -136,7 +136,7 @@ class TestWatchlistService:
         assert watchlist_service.remove_from_watchlist(db_session, user.id, 5) is False
 
     def test_remove_does_not_touch_other_users(self, db_session: Session, user: User):
-        other = auth_service.register_user(db_session, "other@example.com", PASSWORD)
+        other = auth_service.register_user(db_session, "other@example.com", PASSWORD, "Test User")
         watchlist_service.add_to_watchlist(db_session, other.id, 5)
         assert watchlist_service.remove_from_watchlist(db_session, user.id, 5) is False
         assert len(watchlist_service.list_watchlist(db_session, other.id)) == 1

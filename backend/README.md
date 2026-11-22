@@ -104,12 +104,22 @@ python -m scripts.seed_movies     # import the catalogue
 alembic upgrade head              # add the foreign keys
 ```
 
-### Fill and maintain the TMDB metadata (optional)
+### Fill and maintain the TMDB metadata
 
 Overviews, release dates, runtimes and poster paths are stored in the
 `movie_metadata` table. The API only reads that table, so it works (with null
-metadata) even without a TMDB token. Two separate maintenance scripts, which
-need `TMDB_API_READ_ACCESS_TOKEN`, fill it:
+metadata) even without a TMDB token, but then every poster is a placeholder and
+`GET /movies/featured` answers 404.
+
+**Every new environment** (new database or `docker compose down -v`) therefore
+needs both scripts once, after `seed_movies`, with `TMDB_API_READ_ACCESS_TOKEN`
+set. On 22 November 2026 the first full runs stored metadata for 5,047 of the
+5,068 movies (20 TMDB IDs answer 404, 1 movie has no TMDB ID) and validated
+4,981 IDs as `valid`.
+
+The two scripts are separate operations: the refresh script stores the
+content, and the validation script checks that each TMDB ID points to the
+right movie.
 
 ```powershell
 python -m scripts.refresh_movie_metadata              # new, failed or outdated metadata
@@ -136,14 +146,35 @@ uvicorn app.main:app --reload
 
 ### Trying the API in Swagger
 
-1. `POST /api/v1/auth/register` with `{"email": "you@example.com", "password": "at-least-15-characters"}`.
+1. `POST /api/v1/auth/register` with `{"email": "you@example.com", "password": "at-least-15-characters", "name": "Your Name"}` (the name is required).
 2. Click **Authorize** (top right), enter the email as *username* and the password, then **Authorize**.
 3. Call the protected endpoints, e.g. `PUT /api/v1/ratings/318` with `{"rating": 4.5}`.
 
-Movie endpoints are public: `GET /api/v1/movies?search=the%20matrix` (search
-ignores case, accents, punctuation and MovieLens trailing articles),
-`GET /api/v1/movies/1` and `GET /api/v1/movies/1/details` (stored overview and
-poster; `metadata_status` explains missing metadata).
+Movie endpoints are public:
+
+- `GET /api/v1/movies?search=the%20matrix&genre=Sci-Fi`: search ignores case,
+  accents, punctuation and MovieLens trailing articles. `genre` (optional) must
+  be a name returned by `GET /api/v1/movies/genres`. Every item includes
+  `display_title` ("The Matrix"), `year` and the stored `poster_url`.
+- `GET /api/v1/movies/genres`: the catalogue genres with their movie counts.
+- `GET /api/v1/movies/featured`: the movie featured on Discover today. It is a
+  daily rotation over movies with a poster, an overview and a validated TMDB ID,
+  not a popularity ranking.
+- `GET /api/v1/movies/1` and `GET /api/v1/movies/1/details`: stored overview and
+  poster; `metadata_status` explains missing metadata.
+
+Account endpoints (login required; the user is always the token's user):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/users/me` | Account and profile (`name`, `location`, `bio`) |
+| `PATCH /api/v1/users/me` | Change only the profile fields sent; `""`/`null` clears location or bio |
+| `PUT /api/v1/users/me/email` | `{"new_email", "current_password"}`; 403 wrong password, 409 email taken |
+| `PUT /api/v1/users/me/password` | `{"current_password", "new_password"}`; 204, or 403 wrong password |
+| `GET /api/v1/users/me/stats` | Rating count, average and per-genre statistics for the Profile page |
+
+`GET /api/v1/ratings` and `GET /api/v1/watchlist` include each `movie` (title,
+display title, genres, poster), so lists need no request per movie.
 
 ### Recommendations
 
@@ -211,7 +242,8 @@ Linting and formatting: `ruff check .` and `ruff format .`
 | `RuntimeError: Cannot add the movie foreign keys` | Existing ratings/watchlist rows reference movies not yet imported. Follow the three commands in "Import the movie catalogue". |
 | `the database schema is missing or outdated` (import or metadata scripts) | Run `alembic upgrade head` (or `alembic upgrade 413ce2f03dd0` on a database that already has user data, see above) first. |
 | `PUT /ratings/{id}` or `/watchlist/{id}` returns 404 `Movie not found` | The ID is not in the catalogue; import it or use a catalogue `movie_id`. |
-| `metadata_status` is `not_imported` | Run `python -m scripts.refresh_movie_metadata`. |
+| `metadata_status` is `not_imported`, posters are all placeholders, or `/movies/featured` returns 404 | Run `python -m scripts.refresh_movie_metadata`, then `python -m scripts.validate_tmdb_ids` (the featured movie needs a `valid` ID). |
+| `GET /movies?genre=...` returns 422 `Unknown genre` | Use a name exactly as returned by `GET /movies/genres` (e.g. `Sci-Fi`, not `scifi`). |
 | A metadata script prints `TMDB_API_READ_ACCESS_TOKEN is not set` or stops with `TMDB rejected the request (auth_failed)` | Set or correct `TMDB_API_READ_ACCESS_TOKEN` in `.env` (use the long *Read Access Token*, not the short *API Key*). |
 | Accented titles look wrong (e.g. `LÃ©on`) in Windows PowerShell 5.1 | Display issue of PowerShell 5.1's `Invoke-WebRequest`; the data is correct UTF-8. Use Swagger UI or a browser. |
 | `GET /recommendations` returns 503 | A model file in `ml/data/models/` could not be loaded at start-up; the server log shows which one and why (e.g. a hash mismatch means the file was changed or does not belong to this model). Restore the committed files (`git checkout -- ../ml/data/models`) and restart the API. |

@@ -64,6 +64,9 @@ def test_new_user_gets_popular_movies_with_the_cold_start_message(
             {
                 "movie_id": 318,
                 "title": "Shawshank Redemption, The (1994)",
+                # Added in the intermediate backend phase (inherited from MovieRead).
+                "display_title": "The Shawshank Redemption",
+                "year": 1994,
                 "genres": ["Crime", "Drama"],
                 "tmdb_id": 278,
                 "imdb_id": 111161,
@@ -74,6 +77,8 @@ def test_new_user_gets_popular_movies_with_the_cold_start_message(
             {
                 "movie_id": 2571,
                 "title": "Matrix, The (1999)",
+                "display_title": "The Matrix",
+                "year": 1999,
                 "genres": ["Action", "Sci-Fi", "Thriller"],
                 "tmdb_id": 603,
                 "imdb_id": 133093,

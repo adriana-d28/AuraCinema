@@ -85,7 +85,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=False,  # Tokens travel in the Authorization header, not cookies.
-        allow_methods=["GET", "PUT", "POST", "DELETE"],
+        # PATCH is used by PATCH /users/me (partial profile update).
+        allow_methods=["GET", "PUT", "POST", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
     )
 

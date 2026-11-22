@@ -1,0 +1,209 @@
+/*
+ * Sticky header: it stays at the top while the page scrolls. The slightly
+ * see-through background with blur lets posters pass softly underneath.
+ *
+ * Breakpoint note: the full navigation needs about 720px, so the header
+ * switches from the "Menu" button to the full link list at 768px.
+ */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: rgb(27 27 27 / 0.88);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  min-height: var(--header-height);
+}
+
+/* ---------- Wordmark ---------- */
+.brand {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.brandAura {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+
+/* "Cinema" in italic gold: the one decorative, editorial touch in the header. */
+.brandCinema {
+  font-style: italic;
+  font-weight: var(--weight-medium);
+  color: var(--color-gold);
+}
+
+/* ---------- Mobile menu button ---------- */
+.menuButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+/* Three-line "hamburger" icon drawn with CSS (no icon library needed). */
+.menuIcon,
+.menuIcon::before,
+.menuIcon::after {
+  display: block;
+  width: 1rem;
+  height: 1.5px;
+  background-color: currentColor;
+}
+
+.menuIcon {
+  position: relative;
+}
+
+.menuIcon::before,
+.menuIcon::after {
+  content: '';
+  position: absolute;
+  left: 0;
+}
+
+.menuIcon::before {
+  top: -5px;
+}
+
+.menuIcon::after {
+  top: 5px;
+}
+
+/* ---------- Navigation: mobile (default) ---------- */
+/* Hidden until the menu button opens it; then it drops down under the header. */
+.nav {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--layout-gutter) var(--space-5);
+  background-color: var(--color-bg-raised);
+  border-bottom: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-md);
+}
+
+.navOpen {
+  display: flex;
+}
+
+.navList {
+  display: flex;
+  flex-direction: column;
+}
+
+.navLink {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.navLink:hover {
+  color: var(--color-text);
+}
+
+/* Current page: ivory text plus a burgundy bar (left bar on mobile). */
+.navLink[aria-current='page'] {
+  color: var(--color-text);
+}
+
+.navLink[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 25%;
+  bottom: 25%;
+  width: 2px;
+  background-color: var(--color-accent-bright);
+}
+
+.login {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.login:hover {
+  color: var(--color-text);
+}
+
+/* ---------- Navigation: wide screens ---------- */
+@media (min-width: 768px) {
+  .menuButton {
+    display: none;
+  }
+
+  .nav,
+  .navOpen {
+    position: static;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-5);
+    padding: 0;
+    background: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .navList {
+    flex-direction: row;
+    gap: var(--space-1);
+  }
+
+  .navLink {
+    font-size: var(--text-sm);
+    padding: 0 var(--space-3);
+    min-height: var(--header-height);
+  }
+
+  /* Current page: the bar moves under the link. */
+  .navLink[aria-current='page']::before {
+    left: var(--space-3);
+    right: var(--space-3);
+    top: auto;
+    bottom: 0;
+    width: auto;
+    height: 2px;
+  }
+
+  .login {
+    border-top: 0;
+    padding: 0 var(--space-3);
+    border-left: 1px solid var(--color-border);
+    min-height: 1.5rem;
+  }
+}

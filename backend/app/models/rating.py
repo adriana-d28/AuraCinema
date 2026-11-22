@@ -16,6 +16,7 @@ from app.db.base import Base
 from app.models.utils import utc_now
 
 if TYPE_CHECKING:
+    from app.models.movie import Movie
     from app.models.user import User
 
 # MovieLens rating scale: 0.5 to 5.0 stars in half-star steps. Using the same
@@ -62,3 +63,7 @@ class Rating(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="ratings")
+    # The rated catalogue movie. ORM-only: it uses the existing foreign key
+    # (no schema change) and lets the API return the title and poster with
+    # each rating. One-directional, so Movie objects never load their ratings.
+    movie: Mapped["Movie"] = relationship()

@@ -22,7 +22,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 )
 def register(payload: RegisterRequest, db: DbSession) -> UserRead:
     try:
-        user = auth_service.register_user(db, payload.email, payload.password)
+        user = auth_service.register_user(db, payload.email, payload.password, payload.name)
     except auth_service.EmailAlreadyRegisteredError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Email already registered"

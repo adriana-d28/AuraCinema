@@ -3,6 +3,8 @@
 # Fixed, test-only values. They are not secrets and are never used outside tests.
 TEST_JWT_SECRET = "test-only-jwt-secret-key-never-used-in-real-environments"
 TEST_PASSWORD = "CorrectHorse-42"
+# Registration requires a name since the intermediate backend phase.
+TEST_NAME = "Test User"
 
 # A small extract of the real catalogue (ml/data/processed/movies_catalogue.csv),
 # copied exactly, as (movie_id, title, genres, tmdb_id, imdb_id). It is loaded
@@ -53,8 +55,10 @@ TEST_MOVIES = [
 UNKNOWN_MOVIE_ID = 999_999
 
 
-def register_user(client, email: str, password: str = TEST_PASSWORD):
-    return client.post("/api/v1/auth/register", json={"email": email, "password": password})
+def register_user(client, email: str, password: str = TEST_PASSWORD, name: str = TEST_NAME):
+    return client.post(
+        "/api/v1/auth/register", json={"email": email, "password": password, "name": name}
+    )
 
 
 def login(client, email: str, password: str = TEST_PASSWORD):

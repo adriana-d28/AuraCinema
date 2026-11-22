@@ -1,0 +1,38 @@
+.footer {
+  margin-top: var(--space-8);
+  border-top: 1px solid var(--color-border-subtle);
+  background-color: var(--color-bg-raised);
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-5);
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.brand span {
+  font-style: italic;
+  font-weight: var(--weight-medium);
+  color: var(--color-gold);
+}
+
+.notice {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 640px) {
+  .inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+  }
+}

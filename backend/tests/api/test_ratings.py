@@ -1,16 +1,19 @@
 """API tests for the ratings endpoints, including cross-user isolation."""
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Rating
+from app.models import MovieMetadata, Rating
 from tests.helpers import UNKNOWN_MOVIE_ID
 
 pytestmark = pytest.mark.db
 
 RATINGS_URL = "/api/v1/ratings"
+NOW = datetime(2026, 11, 22, 12, 0, tzinfo=UTC)
 
 
 def put_rating(client: TestClient, headers, movie_id, value):
@@ -23,7 +26,22 @@ def test_create_rating_returns_201(client: TestClient, alice_headers):
     body = response.json()
     assert body["movie_id"] == 318
     assert body["rating"] == 4.5
-    assert set(body) == {"movie_id", "rating", "created_at", "rated_at"}
+    assert set(body) == {"movie_id", "rating", "created_at", "rated_at", "movie"}
+
+
+def test_ratings_include_the_movie_summary(client: TestClient, alice_headers, db_session):
+    """Intermediate backend phase: each rating carries the movie as shown in
+    lists (title, display title, poster), so no request per movie is needed."""
+    db_session.add(MovieMetadata(movie_id=2571, poster_path="/m.jpg", metadata_updated_at=NOW))
+    db_session.commit()
+    put_rating(client, alice_headers, 2571, 5.0)
+    put_rating(client, alice_headers, 7842, 3.0)
+
+    movies = [r["movie"] for r in client.get(RATINGS_URL, headers=alice_headers).json()]
+    assert [(m["movie_id"], m["display_title"], m["poster_url"]) for m in movies] == [
+        (7842, "Dune", None),  # Most recently rated first; no metadata: placeholder.
+        (2571, "The Matrix", "https://image.tmdb.org/t/p/w500/m.jpg"),
+    ]
 
 
 def test_update_rating_returns_200_without_creating_duplicates(

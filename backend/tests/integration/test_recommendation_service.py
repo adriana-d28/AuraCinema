@@ -37,7 +37,7 @@ def must_not_be_called(*args, **kwargs):
 
 @pytest.fixture
 def user(db_session: Session) -> User:
-    return auth_service.register_user(db_session, "reco@example.com", PASSWORD)
+    return auth_service.register_user(db_session, "reco@example.com", PASSWORD, "Test User")
 
 
 def rate(db: Session, user: User, ratings: dict[int, float]) -> None:
@@ -68,7 +68,7 @@ def test_cold_start_rule(history, expected):
 
 @pytest.mark.db
 def test_rating_history_holds_only_this_users_current_ratings(db_session: Session, user: User):
-    other = auth_service.register_user(db_session, "other@example.com", PASSWORD)
+    other = auth_service.register_user(db_session, "other@example.com", PASSWORD, "Test User")
     rate(db_session, user, {1: 4.5, 318: 3.0})
     rate(db_session, user, {318: 5.0})  # re-rating replaces the old value
     rate(db_session, other, {2571: 1.0})
@@ -129,7 +129,7 @@ def test_missing_model_is_an_error_and_never_replaced_by_the_other_model(
         recommend_for_user(db_session, user.id, 10, Recommenders(None, must_not_be_called))
 
     # ...and the same in the other direction for a cold-start user.
-    newcomer = auth_service.register_user(db_session, "new@example.com", PASSWORD)
+    newcomer = auth_service.register_user(db_session, "new@example.com", PASSWORD, "Test User")
     with pytest.raises(RecommendationUnavailableError):
         recommend_for_user(db_session, newcomer.id, 10, Recommenders(must_not_be_called, None))
 

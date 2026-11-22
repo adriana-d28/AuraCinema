@@ -6,15 +6,20 @@ token, which isolates each user's watchlist from every other user.
 
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
+from app.models.movie import Movie
 from app.models.watchlist import WatchlistItem
 
 
 def list_watchlist(db: Session, user_id: int) -> list[WatchlistItem]:
+    """The user's watchlist, newest first, with each movie and its stored
+    metadata loaded in two extra queries (no query per item), so the API can
+    return titles and posters."""
     statement = (
         select(WatchlistItem)
         .where(WatchlistItem.user_id == user_id)
+        .options(selectinload(WatchlistItem.movie).selectinload(Movie.movie_metadata))
         .order_by(WatchlistItem.added_at.desc(), WatchlistItem.id)
     )
     return list(db.scalars(statement))

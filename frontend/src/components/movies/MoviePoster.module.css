@@ -1,0 +1,74 @@
+/*
+ * The poster box. "aspect-ratio" keeps the 2:3 portrait shape at any width,
+ * so the box can be as wide as its column (responsive) and the height follows.
+ * "container-type" lets the placeholder text scale with the poster width.
+ */
+.poster {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--poster-ratio);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  container-type: inline-size;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Fill the box without stretching the image. */
+  opacity: 0;
+  transition:
+    opacity var(--duration-normal) var(--ease-standard),
+    transform var(--duration-normal) var(--ease-standard);
+}
+
+.loaded {
+  opacity: 1;
+}
+
+/* ---------- Placeholder ---------- */
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6cqi;
+  padding: 10cqi;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 30%, rgb(128 52 61 / 0.35), transparent 65%),
+    linear-gradient(160deg, var(--color-accent-deep), var(--color-surface) 70%);
+}
+
+/* Thin gold inner frame: a quiet reference to printed film-archive cards. */
+.placeholder::before {
+  content: '';
+  position: absolute;
+  inset: 5cqi;
+  border: 1px solid rgb(181 154 112 / 0.4);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
+.placeholderTitle {
+  /* At most four lines; longer titles end with "...". */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: var(--font-display);
+  /* cqi = 1% of the poster width, so the text grows with the poster. */
+  font-size: clamp(0.85rem, 11cqi, 1.9rem);
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.placeholderLabel {
+  font-size: clamp(0.625rem, 5.5cqi, 0.8rem);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-gold);
+}

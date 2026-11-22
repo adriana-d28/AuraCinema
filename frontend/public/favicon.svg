@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- AuraCinema mark: a burgundy tile with an ivory serif "A" and a gold aura line. -->
+  <rect width="32" height="32" rx="7" fill="#54252C"/>
+  <circle cx="16" cy="16" r="11.5" fill="none" stroke="#B59A70" stroke-width="1.2" opacity="0.8"/>
+  <path d="M10.5 22.5 16 8.5l5.5 14M12.6 17.5h6.8" fill="none" stroke="#F2EEE8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

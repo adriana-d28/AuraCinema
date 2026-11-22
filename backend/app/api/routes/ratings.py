@@ -3,17 +3,31 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
 from app.api.deps import CurrentUser, DbSession, get_movie_or_404
+from app.models.rating import Rating
 from app.schemas.common import MovieIdPath
 from app.schemas.rating import RatingRead, RatingUpsert
-from app.services import rating_service
+from app.services import movie_service, rating_service
 
 router = APIRouter(prefix="/ratings", tags=["ratings"])
 
 
+def to_rating_read(rating: Rating) -> RatingRead:
+    """API representation of a rating, including the rated movie for lists."""
+    return RatingRead(
+        movie_id=rating.movie_id,
+        rating=rating.rating,
+        created_at=rating.created_at,
+        rated_at=rating.rated_at,
+        movie=movie_service.build_movie_summary(rating.movie),
+    )
+
+
 @router.get("", response_model=list[RatingRead], summary="List my ratings")
 def list_my_ratings(current_user: CurrentUser, db: DbSession) -> list[RatingRead]:
-    ratings = rating_service.list_ratings(db, current_user.id)
-    return [RatingRead.model_validate(rating) for rating in ratings]
+    """Most recently rated first. Each rating includes the movie's title,
+    display title, genres and poster."""
+    ratings = rating_service.list_ratings_with_movies(db, current_user.id)
+    return [to_rating_read(rating) for rating in ratings]
 
 
 @router.put(
@@ -39,7 +53,7 @@ def upsert_my_rating(
     # 201 vs 200 tells the client whether a new resource was created.
     rating, created = rating_service.upsert_rating(db, current_user.id, movie_id, payload.rating)
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
-    return RatingRead.model_validate(rating)
+    return to_rating_read(rating)
 
 
 @router.delete(

@@ -18,6 +18,18 @@ GENRES_MAX_LENGTH = 255
 NO_GENRES_LISTED = "(no genres listed)"
 
 
+def split_genres(genres: str) -> list[str]:
+    """Turn the stored MovieLens genre string into a list.
+
+    "Action|Sci-Fi|Thriller" -> ["Action", "Sci-Fi", "Thriller"]; the
+    "(no genres listed)" marker becomes an empty list. Used by Movie.genre_list()
+    and by queries that read only the genres column.
+    """
+    if genres == NO_GENRES_LISTED:
+        return []
+    return [genre for genre in genres.split("|") if genre]
+
+
 class Movie(Base):
     """One movie of the AuraCinema catalogue (the prepared MovieLens subset).
 
@@ -69,9 +81,7 @@ class Movie(Base):
 
     def genre_list(self) -> list[str]:
         """Genres as a list; the "(no genres listed)" marker becomes an empty list."""
-        if self.genres == NO_GENRES_LISTED:
-            return []
-        return [genre for genre in self.genres.split("|") if genre]
+        return split_genres(self.genres)
 
     def __repr__(self) -> str:
         return f"Movie(movie_id={self.movie_id!r}, title={self.title!r})"

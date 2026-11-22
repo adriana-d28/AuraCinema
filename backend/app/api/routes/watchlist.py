@@ -3,17 +3,29 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
 from app.api.deps import CurrentUser, DbSession, get_movie_or_404
+from app.models.watchlist import WatchlistItem
 from app.schemas.common import MovieIdPath
 from app.schemas.watchlist import WatchlistItemRead
-from app.services import watchlist_service
+from app.services import movie_service, watchlist_service
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
 
+def to_watchlist_read(item: WatchlistItem) -> WatchlistItemRead:
+    """API representation of a watchlist entry, including the movie for lists."""
+    return WatchlistItemRead(
+        movie_id=item.movie_id,
+        added_at=item.added_at,
+        movie=movie_service.build_movie_summary(item.movie),
+    )
+
+
 @router.get("", response_model=list[WatchlistItemRead], summary="List my watchlist")
 def list_my_watchlist(current_user: CurrentUser, db: DbSession) -> list[WatchlistItemRead]:
+    """Newest first. Each entry includes the movie's title, display title,
+    genres and poster."""
     items = watchlist_service.list_watchlist(db, current_user.id)
-    return [WatchlistItemRead.model_validate(item) for item in items]
+    return [to_watchlist_read(item) for item in items]
 
 
 @router.put(
@@ -34,7 +46,7 @@ def add_to_my_watchlist(
     # Idempotent: adding a movie twice is not an error and never duplicates it.
     item, created = watchlist_service.add_to_watchlist(db, current_user.id, movie_id)
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
-    return WatchlistItemRead.model_validate(item)
+    return to_watchlist_read(item)
 
 
 @router.delete(

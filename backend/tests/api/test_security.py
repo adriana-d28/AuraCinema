@@ -74,6 +74,8 @@ def test_logs_do_not_contain_passwords_tokens_or_secrets(client: TestClient, cap
 
 def test_oversized_password_is_rejected_before_hashing(client: TestClient):
     response = client.post(
-        "/api/v1/auth/register", json={"email": "big@example.com", "password": "x" * 100_000}
+        "/api/v1/auth/register",
+        json={"email": "big@example.com", "password": "x" * 100_000, "name": "Big"},
     )
     assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "password"]

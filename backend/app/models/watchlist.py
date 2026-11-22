@@ -8,6 +8,7 @@ from app.db.base import Base
 from app.models.utils import utc_now
 
 if TYPE_CHECKING:
+    from app.models.movie import Movie
     from app.models.user import User
 
 
@@ -32,3 +33,6 @@ class WatchlistItem(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="watchlist_items")
+    # The saved catalogue movie (ORM-only, uses the existing foreign key), so
+    # the watchlist can be shown with titles and posters. One-directional.
+    movie: Mapped["Movie"] = relationship()
