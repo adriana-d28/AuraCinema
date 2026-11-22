@@ -27,3 +27,11 @@ python-multipart>=0.0.32,<1.0
 # dependency (see requirements-dev.txt), so no new package is introduced;
 # It moves here because the application now uses it at runtime.
 httpx2>=2.13,<3.0
+
+# Scientific stack needed to load and run the trained recommendation models of
+# the ML component (ml/src), which the API imports in-process. The versions are
+# pinned to exactly those in ml/requirements.txt, the versions the models were
+# trained, saved and tested with.
+numpy==2.5.2
+pandas==3.0.6
+scipy==1.18.1

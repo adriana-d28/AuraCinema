@@ -163,6 +163,7 @@ class TestCurrentUser:
             ("get", "/api/v1/watchlist"),
             ("put", "/api/v1/watchlist/1"),
             ("delete", "/api/v1/watchlist/1"),
+            ("get", "/api/v1/recommendations"),
         ],
     )
     def test_protected_endpoints_reject_unauthenticated_requests(

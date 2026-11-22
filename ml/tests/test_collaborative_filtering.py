@@ -177,6 +177,14 @@ def test_missing_or_corrupted_artefacts_are_rejected(prepared_models, tmp_path, 
         load_cf_model(models, prepared_models.processed)
 
 
+def test_index_map_that_does_not_belong_to_the_model_is_rejected(prepared_models, tmp_path):
+    processed = copy_of(prepared_models.processed, tmp_path)
+    path = processed / "movie_index_map.csv"
+    path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    with pytest.raises(DataValidationError, match="SHA-256 recorded in cf_model_manifest.json"):
+        load_cf_model(prepared_models.models, processed)
+
+
 def test_training_file_changed_after_preparation_is_rejected(prepared_models, tmp_path):
     processed = copy_of(prepared_models.processed, tmp_path)
     path = processed / "ratings_train.csv"

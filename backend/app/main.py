@@ -4,18 +4,34 @@ Run locally with:  uvicorn app.main:app --reload   (from the backend/ folder)
 """
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, health, movies, ratings, users, watchlist
+from app.api.routes import auth, health, movies, ratings, recommendations, users, watchlist
 from app.core.config import get_settings
+from app.services import recommendation_service
 
 API_V1_PREFIX = "/api/v1"
 
 logger = logging.getLogger("app")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Code run once when the server starts (before `yield`) and stops (after).
+
+    The recommendation models are loaded here, so the first user does not wait
+    for them and any problem with the model files appears in the log at start-up.
+    A loading failure does not stop the API: the other endpoints keep working and
+    only the recommendation endpoint answers 503.
+    """
+    recommendation_service.load_recommenders()
+    yield
 
 
 async def validation_exception_handler(
@@ -61,6 +77,7 @@ def create_app() -> FastAPI:
         title="AuraCinema API",
         version="0.1.0",
         description="Backend for AuraCinema, a movie discovery and recommendation application.",
+        lifespan=lifespan,
     )
 
     # Only the configured frontend origins may call the API from a browser.
@@ -77,7 +94,7 @@ def create_app() -> FastAPI:
 
     # Health checks are unversioned so infrastructure probes never need to change.
     app.include_router(health.router)
-    for module in (auth, users, movies, ratings, watchlist):
+    for module in (auth, users, movies, ratings, watchlist, recommendations):
         app.include_router(module.router, prefix=API_V1_PREFIX)
 
     logger.info("AuraCinema API initialised (environment=%s)", settings.app_env.value)

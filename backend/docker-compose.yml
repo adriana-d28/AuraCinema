@@ -27,7 +27,12 @@ services:
       retries: 10
 
   api:
-    build: .
+    # The context is the repository root, so the image can include the ML code
+    # and model files (ml/src, ml/data/models); the root .dockerignore keeps
+    # everything else, including the MovieLens datasets, out of the build.
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
     env_file: .env
     environment:
       # Inside the Compose network the database host is the service name "db",

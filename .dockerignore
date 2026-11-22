@@ -1,0 +1,17 @@
+# Docker build context = repository root (backend/docker-compose.yml, service "api").
+# Allow-list: exclude EVERYTHING, then re-include only what the API image copies.
+# This keeps the MovieLens data (ml/data/ml-32m), the processed training/test
+# datasets (ml/data/processed, about 750 MB), .env files, virtual environments,
+# tests and documentation out of the build context and out of the image.
+*
+
+!backend/requirements.txt
+!backend/alembic.ini
+!backend/alembic
+!backend/app
+!ml/src
+!ml/data/models
+
+# Never send caches, even inside the allowed folders.
+**/__pycache__
+**/*.py[cod]

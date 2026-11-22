@@ -145,6 +145,25 @@ ignores case, accents, punctuation and MovieLens trailing articles),
 `GET /api/v1/movies/1` and `GET /api/v1/movies/1/details` (stored overview and
 poster; `metadata_status` explains missing metadata).
 
+### Recommendations
+
+`GET /api/v1/recommendations?limit=10` (login required, `limit` 1–20) returns
+the user's recommendations. Users with at least 2 ratings that are not all
+identical get item-based collaborative filtering (`"source":
+"collaborative_filtering"`). Everyone else gets the popularity baseline
+(`"source": "popularity"`, with a cold-start `message`). Movies the user has
+rated are never returned; watchlist movies can be.
+
+The API loads the trained models once at start-up from the versioned folder
+`../ml/data/models/`. It holds the CF neighbour matrix, the
+`movie_index_map.csv` mapping, the popularity ranking and their manifests,
+about 2.5 MB in total. Nothing is retrained, and the git-ignored MovieLens
+training/test datasets are not needed, so recommendations work in a fresh clone
+and in Docker. The log shows `Collaborative filtering model loaded` and
+`Popularity baseline loaded`. If a model cannot be loaded, the API still starts:
+the reason is logged and only this endpoint answers `503`. Details:
+`docs/recommendation_service_integration.md`.
+
 ### Alternative: run API and database in Docker
 
 The catalogue import runs from the host (it needs the CSV from `ml/`), using the
@@ -158,6 +177,11 @@ docker compose down -v           # ALSO deletes the database volume (all data!)
 ```
 
 Stop the API container before running `uvicorn` locally, since both use port 8000.
+The image is built from the **repository root**
+(`context: ..` in `docker-compose.yml`). It contains the backend code plus the
+runtime part of the ML component (`ml/src` and `ml/data/models`), in the same
+folder layout as the repository. The root `.dockerignore` allows only those
+paths, so the MovieLens datasets never enter the build context or the image.
 
 ## 8. Run the automated tests
 
@@ -190,4 +214,5 @@ Linting and formatting: `ruff check .` and `ruff format .`
 | `metadata_status` is `not_imported` | Run `python -m scripts.refresh_movie_metadata`. |
 | A metadata script prints `TMDB_API_READ_ACCESS_TOKEN is not set` or stops with `TMDB rejected the request (auth_failed)` | Set or correct `TMDB_API_READ_ACCESS_TOKEN` in `.env` (use the long *Read Access Token*, not the short *API Key*). |
 | Accented titles look wrong (e.g. `LÃ©on`) in Windows PowerShell 5.1 | Display issue of PowerShell 5.1's `Invoke-WebRequest`; the data is correct UTF-8. Use Swagger UI or a browser. |
+| `GET /recommendations` returns 503 | A model file in `ml/data/models/` could not be loaded at start-up; the server log shows which one and why (e.g. a hash mismatch means the file was changed or does not belong to this model). Restore the committed files (`git checkout -- ../ml/data/models`) and restart the API. |
 | VS Code shows "package not installed" hints | Select the interpreter `backend\.venv\Scripts\python.exe` (Ctrl+Shift+P → *Python: Select Interpreter*). |

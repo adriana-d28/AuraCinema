@@ -61,7 +61,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-# Reused from the earlier phases instead of being duplicated.
+# Reused from popularity baseline.
 from src.popularity_baseline import (
     _check_columns,
     _read_dataset_manifest,
@@ -481,7 +481,15 @@ def load_cf_model(
         raise DataValidationError(f"{manifest_path.name}: unsupported algorithm '{algorithm}' / scoring '{scoring}'")
     if sha256_of(npz_path) != expected_hash:
         raise DataValidationError(f"{npz_path.name} does not match the hash in {manifest_path.name}; retrain it.")
-    _verify_input_hash(_require_file(index_map_path), index_map_hash)
+    # The expected hash of the mapping comes from THIS model's manifest (recorded at
+    # training time), so the message names that manifest. A different mapping would
+    # silently attach the similarities to the wrong movies, so it is never used.
+    if sha256_of(_require_file(index_map_path)) != index_map_hash:
+        raise DataValidationError(
+            f"{index_map_path.name} does not match the SHA-256 recorded in {manifest_path.name}; "
+            "it is not the item mapping this model was trained with. Use the mapping saved with "
+            "the model, or retrain the model."
+        )
 
     index_map = load_movie_index_map(index_map_path)
     neighbours = sparse.csr_array(sparse.load_npz(npz_path))
