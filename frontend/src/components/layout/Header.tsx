@@ -5,8 +5,9 @@
 //   - the main navigation: Discover, Recommendations, Watchlist, Profile.
 //     Settings is reached from the Profile page, as in the original wireframes.
 //     Taste Evolution is NOT part of the first iteration, so it is not listed;
-//   - a "Log in" link. Once authentication exists (next frontend phase) this
-//     place will hold the signed-in user's menu instead.
+//   - the signed-in user's name and a "Log out" button (Phase 7.2). The
+//     header is only shown on protected pages, so a user is always signed in.
+//     Logging out ends the session; the RequireAuth guard then opens /login.
 //
 // On small screens the links are folded behind a "Menu" button. The button
 // tells screen readers whether the menu is open (aria-expanded) and which
@@ -14,6 +15,7 @@
 
 import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router'
+import { useAuth } from '../../auth/authContext'
 import styles from './Header.module.css'
 
 // One list drives the navigation, so adding a page later is a one-line change.
@@ -26,6 +28,9 @@ const MAIN_NAVIGATION = [
 
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { user, logout } = useAuth()
+  // Accounts created before names existed have no name: show the email instead.
+  const displayName = user?.name ?? user?.email
 
   // Close the mobile menu after a link is chosen (the new page is shown).
   const closeMenu = () => setMenuOpen(false)
@@ -80,9 +85,12 @@ export function Header() {
               </li>
             ))}
           </ul>
-          <Link to="/login" className={styles.login} onClick={closeMenu}>
-            Log in
-          </Link>
+          <div className={styles.account}>
+            {displayName && <span className={styles.userName}>{displayName}</span>}
+            <button type="button" className={styles.logout} onClick={logout}>
+              Log out
+            </button>
+          </div>
         </nav>
       </div>
     </header>

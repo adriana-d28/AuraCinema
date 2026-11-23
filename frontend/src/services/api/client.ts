@@ -7,9 +7,9 @@
 //   - adding the login token when one is given;
 //   - turning an unsuccessful answer into a clear ApiError.
 //
-// IMPORTANT (Phase 7.1): no page calls the API yet. Endpoint functions such
-// as "getRecommendations" will be added in the phases that need them, using
-// only endpoints that really exist in backend/app/api/routes/.
+// Endpoint functions live next to this file (auth.ts since Phase 7.2) and are
+// added in the phases that need them, using only endpoints that really exist
+// in backend/app/api/routes/. Authenticated calls pass useAuth().token.
 
 import { API_BASE_URL } from '../../config'
 

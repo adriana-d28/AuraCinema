@@ -23,6 +23,26 @@
   color: var(--color-text-faint);
 }
 
+/* Messages above the form: a request error (alert) or a confirmation (status). */
+.alert,
+.success {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.alert {
+  border-color: var(--color-accent-bright);
+  background-color: var(--color-accent-deep);
+}
+
+.success {
+  border-color: var(--color-gold);
+  background-color: var(--color-surface);
+}
+
 .switch {
   font-size: var(--text-sm);
   color: var(--color-text-muted);

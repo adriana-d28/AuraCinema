@@ -6,10 +6,11 @@
 //   - Account information (name, email, password)   [needs backend]
 //     The API has no endpoints to change these yet; the intermediate backend
 //     phase will add them. All fields and "Save changes" are disabled.
-//   - Session (log out)                             [later frontend phase]
-//     Logging out only means forgetting the login token in the browser, so it
-//     needs no backend endpoint. It is enabled together with sign-in.
+//   - Session (log out)                             [Phase 7.2, enabled]
+//     Logging out only means forgetting the login token in this browser (the
+//     backend has no logout endpoint), so it uses useAuth().logout().
 
+import { useAuth } from '../auth/authContext'
 import { Button } from '../components/ui/Button'
 import { Panel } from '../components/ui/Panel'
 import { SectionHeading } from '../components/ui/SectionHeading'
@@ -17,6 +18,8 @@ import { TextField } from '../components/ui/TextField'
 import styles from './SettingsPage.module.css'
 
 export function SettingsPage() {
+  const { logout } = useAuth()
+
   return (
     <div className="container page">
       <title>Settings · AuraCinema</title>
@@ -65,11 +68,10 @@ export function SettingsPage() {
           <Panel title="Session">
             <p>Log out of AuraCinema on this device.</p>
             <div>
-              <Button variant="secondary" disabled>
+              <Button variant="secondary" onClick={logout}>
                 Log out
               </Button>
             </div>
-            <p className={styles.note}>Available once sign-in is connected in the next phase.</p>
           </Panel>
         </div>
       </div>

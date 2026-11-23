@@ -7,13 +7,14 @@
 // the child page appears where the layout renders <Outlet />.
 //
 // Taste Evolution is not part of the first iteration, so it has no route.
-// Route protection (sending signed-out users to /login) is added in the
-// Authentication phase.
+// Route protection (Phase 7.2, src/auth/RouteGuards.tsx): every AppLayout page
+// needs a signed-in user; Login and Register are for signed-out visitors only.
 //
 // The list is kept separate from App.tsx so the tests can load exactly the
 // same routes inside an in-memory router.
 
 import type { RouteObject } from 'react-router'
+import { RedirectIfAuthenticated, RequireAuth } from '../auth/RouteGuards'
 import { AppLayout } from '../components/layout/AppLayout'
 import { AuthLayout } from '../components/layout/AuthLayout'
 import { DiscoverPage } from '../pages/DiscoverPage'
@@ -28,14 +29,22 @@ import { WatchlistPage } from '../pages/WatchlistPage'
 
 export const routes: RouteObject[] = [
   {
-    element: <AuthLayout />,
+    element: (
+      <RedirectIfAuthenticated>
+        <AuthLayout />
+      </RedirectIfAuthenticated>
+    ),
     children: [
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
     ],
   },
   {
-    element: <AppLayout />,
+    element: (
+      <RequireAuth>
+        <AppLayout />
+      </RequireAuth>
+    ),
     children: [
       { index: true, element: <DiscoverPage /> }, // "/" = Discover
       { path: 'recommendations', element: <RecommendationsPage /> },

@@ -58,3 +58,13 @@ textarea.control {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
+
+/* Validation error: the light burgundy accent, so no new colour is needed. */
+.control[aria-invalid='true'] {
+  border-color: var(--color-accent-bright);
+}
+
+.error {
+  font-size: var(--text-sm);
+  color: var(--color-accent-bright);
+}

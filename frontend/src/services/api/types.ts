@@ -67,11 +67,22 @@ export interface RecommendationResponse {
 
 // ---------- Accounts (backend/app/schemas/auth.py and user.py) ----------
 
-/** Response of POST /auth/register and GET /users/me. */
+/** Response of POST /auth/register and GET /users/me (UserRead). */
 export interface User {
   id: number
   email: string
   created_at: string
+  // `name` is null only for accounts created before names were required.
+  name: string | null
+  location: string | null
+  bio: string | null
+}
+
+/** Body of POST /auth/register (RegisterRequest). The backend rejects any other field. */
+export interface RegisterRequest {
+  name: string // 1-100 characters after trimming
+  email: string
+  password: string // 15-128 characters
 }
 
 /** Response of POST /auth/login (sent as a form, not JSON: username = email). */
