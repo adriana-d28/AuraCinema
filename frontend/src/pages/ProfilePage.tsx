@@ -3,18 +3,30 @@
 // The structure follows the original profile wireframe. Each element is in
 // one of three situations, written next to it in the code:
 //   [later frontend phase] the API supports it, but sign-in is needed first
-//                          (email, "member since", recent ratings);
+//                          (email, "member since");
 //   [needs backend]        the API has no data for it yet (picture, name,
 //                          location, bio, genre analysis, preference summary).
 //                          These are shown DISABLED with "Coming soon"; the
 //                          intermediate backend phase will add them.
 // The Settings link works: Settings is reached from here, not from the main menu.
+//
+// Recent ratings are CONNECTED (added at the end of Phase 7.3): GET /ratings
+// returns the user's ratings newest first, each with its movie summary, so
+// one request is enough. The newest RECENT_RATINGS_LIMIT are shown.
 
+import { useEffect, useState } from 'react'
+import { useAuth } from '../auth/authContext'
+import { MovieCard } from '../components/movies/MovieCard'
+import { RatingStars } from '../components/movies/RatingStars'
 import { ComingSoonBadge } from '../components/ui/Badge'
-import { ButtonLink } from '../components/ui/Button'
+import { Button, ButtonLink } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Panel } from '../components/ui/Panel'
 import { SectionHeading } from '../components/ui/SectionHeading'
+import { Skeleton } from '../components/ui/Skeleton'
+import { errorMessage, isAbortError } from '../services/api/client'
+import { listMyRatings } from '../services/api/ratings'
+import type { Rating } from '../services/api/types'
 import styles from './ProfilePage.module.css'
 
 export function ProfilePage() {
@@ -97,15 +109,98 @@ export function ProfilePage() {
         </Panel>
       </div>
 
-      {/* [later frontend phase] Recent ratings: GET /api/v1/ratings exists (sign-in needed). */}
-      <section aria-labelledby="recent-ratings-heading" className={styles.recent}>
-        <SectionHeading id="recent-ratings-heading" title="Recent ratings" />
+      {/* Connected: GET /api/v1/ratings (newest first). */}
+      <RecentRatings />
+    </div>
+  )
+}
+
+/** How many of the newest ratings the profile shows. */
+const RECENT_RATINGS_LIMIT = 6
+
+type RecentState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; ratings: Rating[] }
+
+function RecentRatings() {
+  const { token } = useAuth()
+  const [state, setState] = useState<RecentState>({ status: 'loading' })
+  const [attempt, setAttempt] = useState(0) // Increased by "Try again".
+
+  useEffect(() => {
+    if (!token) return
+    const controller = new AbortController()
+    listMyRatings(token, controller.signal)
+      // The backend already sorts them, most recently rated first.
+      .then((ratings) => setState({ status: 'ready', ratings: ratings.slice(0, RECENT_RATINGS_LIMIT) }))
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) setState({ status: 'error', message: errorMessage(error) })
+      })
+    return () => controller.abort()
+  }, [token, attempt])
+
+  return (
+    <section aria-labelledby="recent-ratings-heading" className={styles.recent}>
+      <SectionHeading id="recent-ratings-heading" title="Recent ratings" />
+
+      {state.status === 'loading' && (
+        <>
+          <p className="visually-hidden" role="status">
+            Loading your ratings…
+          </p>
+          <div className={styles.recentList} aria-hidden="true">
+            {[1, 2, 3].map((key) => (
+              <div key={key} className={styles.recentLoading}>
+                <Skeleton variant="poster" />
+                <Skeleton width="50%" />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {state.status === 'error' && (
+        <EmptyState
+          headingLevel="h3"
+          title="Your ratings could not be loaded"
+          description={state.message}
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setState({ status: 'loading' })
+                setAttempt((value) => value + 1)
+              }}
+            >
+              Try again
+            </Button>
+          }
+        />
+      )}
+
+      {state.status === 'ready' && state.ratings.length === 0 && (
         <EmptyState
           headingLevel="h3"
           title="No ratings to show yet"
-          description="The films you rate will appear here, newest first. Rating is connected in a later phase."
+          description="The films you rate will appear here, newest first."
+          action={
+            <ButtonLink to="/" variant="secondary">
+              Find a film to rate
+            </ButtonLink>
+          }
         />
-      </section>
-    </div>
+      )}
+
+      {state.status === 'ready' && state.ratings.length > 0 && (
+        <ul role="list" className={styles.recentList}>
+          {state.ratings.map((rating) => (
+            <li key={rating.movie_id}>
+              <MovieCard movie={rating.movie} variant="compact" extra={<RatingStars value={rating.rating} />} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }

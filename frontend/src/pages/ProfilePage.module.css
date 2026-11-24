@@ -129,3 +129,29 @@
   flex-direction: column;
   gap: var(--space-5);
 }
+
+/* Recent ratings: compact cards, one column on phones, three from desktop. */
+.recentList {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .recentList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .recentList {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.recentLoading {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: var(--space-4);
+  align-items: center;
+  opacity: 0.5;
+}

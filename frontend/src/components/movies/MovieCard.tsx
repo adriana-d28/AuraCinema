@@ -10,17 +10,17 @@
 // The whole card is one link, so it is a single stop for keyboard users. The
 // poster's alt text is empty because the title is already written in the card.
 //
-// The card only needs four fields, which every movie type returned by the API
-// can provide (MovieDetails, RecommendedMovie...).
+// The card only needs a few fields, which every movie type returned by the
+// API provides (MovieSummary in lists, MovieDetails, RecommendedMovie...). The
+// readable title and the year come ready-made from the backend.
 
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
-import type { MovieDetails } from '../../services/api/types'
-import { formatMovieTitle } from '../../utils/movieFormat'
+import type { MovieSummary } from '../../services/api/types'
 import { MoviePoster } from './MoviePoster'
 import styles from './MovieCard.module.css'
 
-export type MovieCardData = Pick<MovieDetails, 'movie_id' | 'title' | 'genres' | 'poster_url'>
+export type MovieCardData = Pick<MovieSummary, 'movie_id' | 'display_title' | 'year' | 'genres' | 'poster_url'>
 
 interface MovieCardProps {
   movie: MovieCardData
@@ -30,7 +30,7 @@ interface MovieCardProps {
 }
 
 export function MovieCard({ movie, variant = 'standard', extra }: MovieCardProps) {
-  const { title, year } = formatMovieTitle(movie.title)
+  const { display_title: title, year } = movie
   // Show at most two genres, so the metadata line stays short.
   const genres = movie.genres.slice(0, 2).join(', ')
   const metadata = [year, genres].filter(Boolean).join(' · ')

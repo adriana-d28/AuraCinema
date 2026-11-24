@@ -4,8 +4,8 @@
 // (backend/app/schemas/rating.py). So 3.5 is drawn as three full stars, one
 // half star and one empty star.
 //
-// This component only DISPLAYS a value. The interactive version (choosing a
-// rating) belongs to the Rating phase. The value is also written for screen
+// This component only DISPLAYS a value. Choosing a rating is done with
+// RatingInput (Phase 7.3), which draws the same star. The value is also written for screen
 // readers ("Rated 3.5 out of 5"), so it never depends on colour alone.
 
 import styles from './RatingStars.module.css'
@@ -16,7 +16,8 @@ interface RatingStarsProps {
   size?: 'sm' | 'lg'
 }
 
-const STAR_PATH =
+/** Outline of one star (24x24), shared with RatingInput. */
+export const STAR_PATH =
   'M12 2.8l2.75 5.57 6.15.9-4.45 4.33 1.05 6.12L12 16.83l-5.5 2.89 1.05-6.12L3.1 9.27l6.15-.9L12 2.8z'
 
 export function RatingStars({ value, size = 'sm' }: RatingStarsProps) {

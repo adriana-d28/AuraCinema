@@ -11,11 +11,14 @@
 //     A 401 (invalid, expired or deleted account) or any other failure ends
 //     the session, so the frontend never shows a session the backend rejects.
 //   - A timer ends the session at the moment the token expires.
+//   - A 401 on any later authenticated request (ratings, watchlist) also ends
+//     it, through the handler registered in services/api/client.ts.
 //   - Logging out forgets the token in this browser. The token itself is not
 //     revoked by the backend; it stays technically valid until it expires.
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getCurrentUser, loginRequest } from '../services/api/auth'
+import { setUnauthorizedHandler } from '../services/api/client'
 import type { User } from '../services/api/types'
 import { AuthContext, type AuthContextValue, type AuthStatus, type SessionEndReason } from './authContext'
 
@@ -92,6 +95,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearStoredSession()
     setState(signedOut(reason))
   }, [])
+
+  // Any authenticated request answered with 401 (Phase 7.3: ratings,
+  // watchlist) ends the session in the same way as an expired token.
+  useEffect(() => {
+    setUnauthorizedHandler(() => endSession('expired'))
+    return () => setUnauthorizedHandler(null)
+  }, [endSession])
 
   // Start-up: check a stored token with the backend before trusting it.
   const pendingToken = state.status === 'initialising' ? state.session?.token : undefined

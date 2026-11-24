@@ -5,9 +5,8 @@
 // (the magnifying-glass icon and the placeholder already show what it is for)
 // but still read aloud.
 //
-// Phase 7.1: the Discover preview passes `submitDisabled`, because catalogue
-// search is connected to GET /api/v1/movies?search=... in the catalogue phase.
-// In that phase the page will pass an `onSearch` function instead.
+// Discover passes `onSearch` (Phase 7.3) and starts the box with the search
+// kept in the address (`defaultValue`).
 
 import { useId, useState, type FormEvent } from 'react'
 import { Button } from './Button'
@@ -17,16 +16,25 @@ interface SearchInputProps {
   label: string
   placeholder?: string
   hint?: string
+  /** Text shown in the box when it first appears (e.g. the current search). */
+  defaultValue?: string
   /** Called with the trimmed text when the form is submitted. */
   onSearch?: (query: string) => void
   /** Keeps the input usable but disables the submit button (feature not connected yet). */
   submitDisabled?: boolean
 }
 
-export function SearchInput({ label, placeholder, hint, onSearch, submitDisabled = false }: SearchInputProps) {
+export function SearchInput({
+  label,
+  placeholder,
+  hint,
+  defaultValue = '',
+  onSearch,
+  submitDisabled = false,
+}: SearchInputProps) {
   const inputId = useId()
   const hintId = `${inputId}-hint`
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(defaultValue)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     // Stop the browser from reloading the page (the default form behaviour).

@@ -1,0 +1,31 @@
+/* One column on phones, two from desktop: compact rows keep browsing quick. */
+.list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 1024px) {
+  .list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+}
+
+/* The card takes the free space; the Remove button sits on its right. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.row > article {
+  flex: 1;
+}
+
+.loadingRow {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: var(--space-4);
+  align-items: center;
+  opacity: 0.5;
+}

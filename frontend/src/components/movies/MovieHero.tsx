@@ -9,13 +9,13 @@
 //   layer 3 (front):  the sharp poster, the title, metadata and actions.
 // Everything is plain CSS (blur, gradients). No extra images or requests.
 //
-// Used by the Discover featured area (headingLevel "h2") and, as a preview,
-// by the movie details page (headingLevel "h1"). Any extra content, such as
+// Used by the Discover featured area (headingLevel "h2") and by the movie
+// details page (headingLevel "h1"). Any extra content, such as
 // buttons, is passed as children.
 
 import type { CSSProperties, ReactNode } from 'react'
 import type { MovieDetails } from '../../services/api/types'
-import { formatMovieTitle, formatRuntime } from '../../utils/movieFormat'
+import { formatRuntime } from '../../utils/movieFormat'
 import { MoviePoster } from './MoviePoster'
 import styles from './MovieHero.module.css'
 
@@ -31,7 +31,7 @@ interface MovieHeroProps {
 
 export function MovieHero({ movie, eyebrow, headingLevel = 'h2', showOverview = true, children }: MovieHeroProps) {
   const Heading = headingLevel
-  const { title, year } = formatMovieTitle(movie.title)
+  const { display_title: title, year } = movie
   const metadata = [year, movie.runtime ? formatRuntime(movie.runtime) : null, movie.genres.join(', ')]
     .filter(Boolean)
     .join(' · ')

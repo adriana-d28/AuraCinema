@@ -7,9 +7,9 @@
 //   - adding the login token when one is given;
 //   - turning an unsuccessful answer into a clear ApiError.
 //
-// Endpoint functions live next to this file (auth.ts since Phase 7.2) and are
-// added in the phases that need them, using only endpoints that really exist
-// in backend/app/api/routes/. Authenticated calls pass useAuth().token.
+// Endpoint functions live next to this file (auth.ts, movies.ts, ratings.ts,
+// watchlist.ts) and use only endpoints that really exist in
+// backend/app/api/routes/. Authenticated calls pass useAuth().token.
 
 import { API_BASE_URL } from '../../config'
 
@@ -35,10 +35,19 @@ interface RequestOptions {
   signal?: AbortSignal
 }
 
+// Called when an authenticated request answers 401. AuthProvider registers a
+// function that ends the session, so the user is sent back to Log in.
+let unauthorizedHandler: (() => void) | null = null
+
+/** Register (or clear, with null) the function called after a 401 on an authenticated request. */
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler
+}
+
 /**
  * Send a request to the backend and return the response body.
  *
- * Example (in a later phase):
+ * Example:
  *   const details = await apiRequest<MovieDetails>('/movies/6/details')
  */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -69,6 +78,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (!response.ok) {
+    // A token was sent but the backend rejected it (expired, invalid, deleted
+    // account): the session is over. Handled once here instead of in every page.
+    if (response.status === 401 && token) unauthorizedHandler?.()
     throw new ApiError(response.status, await readErrorMessage(response))
   }
 
@@ -77,6 +89,16 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     return undefined as T
   }
   return (await response.json()) as T
+}
+
+/** True when a request was cancelled on purpose (the page no longer needs it). */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+/** A message that can be shown to the user for any error thrown by a request. */
+export function errorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : 'Something went wrong. Please try again.'
 }
 
 /**

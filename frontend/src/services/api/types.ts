@@ -16,24 +16,33 @@ export type MetadataStatus =
   | 'not_found' // TMDB answered 404 for this TMDB ID.
   | 'lookup_failed' // The last lookup failed temporarily.
 
-/** Core catalogue data (MovieRead). The title includes the year, e.g. "Heat (1995)". */
+/** Core catalogue data (MovieRead). `title` is the original MovieLens title, e.g. "Matrix, The (1999)". */
 export interface Movie {
   movie_id: number
   title: string
+  /** Readable title prepared by the backend, e.g. "The Matrix". Use this one on screen. */
+  display_title: string
+  /** Year taken from the MovieLens title, or null when there is none. */
+  year: number | null
   genres: string[]
   tmdb_id: number | null
   imdb_id: number | null
 }
 
+/** A movie as shown in lists (MovieSummaryRead): catalogue pages, watchlist, ratings. */
+export interface MovieSummary extends Movie {
+  poster_url: string | null // null means: show the poster placeholder
+}
+
 /** One page of catalogue results (MovieListResponse), from GET /movies. */
 export interface MovieListResponse {
-  items: Movie[]
-  total: number
+  items: MovieSummary[]
+  total: number // Matching movies over all pages
   limit: number
   offset: number
 }
 
-/** A movie plus its stored TMDB metadata (MovieDetailsRead), from GET /movies/{id}/details. */
+/** A movie plus its stored TMDB metadata (MovieDetailsRead), from GET /movies/{id}/details and /movies/featured. */
 export interface MovieDetails extends Movie {
   overview: string | null
   release_date: string | null // ISO date, e.g. "1995-12-15"
@@ -43,6 +52,12 @@ export interface MovieDetails extends Movie {
   metadata_status: MetadataStatus
   metadata_updated_at: string | null // ISO date-time
   tmdb_validation_status: string
+}
+
+/** One catalogue genre (GenreRead), from GET /movies/genres. `genre` is the value for ?genre=. */
+export interface Genre {
+  genre: string
+  movie_count: number
 }
 
 // ---------- Recommendations (backend/app/schemas/recommendation.py) ----------
@@ -94,16 +109,18 @@ export interface TokenResponse {
 
 // ---------- Ratings and watchlist (backend/app/schemas/rating.py, watchlist.py) ----------
 
-/** One of the user's ratings. Ratings go from 0.5 to 5.0 in steps of 0.5. */
+/** One of the user's ratings (RatingRead). Ratings go from 0.5 to 5.0 in steps of 0.5. */
 export interface Rating {
   movie_id: number
   rating: number
   created_at: string
   rated_at: string
+  movie: MovieSummary
 }
 
-/** One watchlist entry. The API currently returns only the movie ID and the date. */
+/** One watchlist entry (WatchlistItemRead), with the movie as shown in lists. */
 export interface WatchlistItem {
   movie_id: number
   added_at: string
+  movie: MovieSummary
 }

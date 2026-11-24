@@ -4,30 +4,6 @@
   gap: var(--space-5);
 }
 
-/* Search box and Filters button: stacked on phones, side by side from tablet. */
-.searchRow {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.filters {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-@media (min-width: 640px) {
-  .searchRow {
-    flex-direction: row;
-    align-items: flex-start;
-  }
-
-  .filters {
-    padding-top: var(--space-1);
-  }
-}
-
 /* ---------- Genre chips ---------- */
 .genres {
   display: flex;
@@ -47,10 +23,22 @@
   cursor: pointer;
 }
 
-/* Planned feature: dashed outline, as for every "coming soon" element. */
-.genreChip:disabled {
-  cursor: not-allowed;
-  border-style: dashed;
+.genreChip:hover {
+  border-color: var(--color-text-faint);
+  color: var(--color-text);
+}
+
+/* The selected genre: burgundy, like the active navigation link. */
+.genreChip[aria-pressed='true'] {
+  border-color: var(--color-accent-bright);
+  background-color: var(--color-accent-deep);
+  color: var(--color-text);
+}
+
+.note {
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
 }
 
 /* ---------- Catalogue grid ---------- */
@@ -75,4 +63,9 @@
   .grid {
     column-gap: var(--space-5);
   }
+}
+
+.loadMore {
+  display: flex;
+  justify-content: center;
 }
