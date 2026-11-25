@@ -1,0 +1,119 @@
+{
+  "purpose": "measurement of the Discovery Mode settings on ratings_test.csv; weights fixed before this run",
+  "source": {
+    "dataset": "MovieLens 32M",
+    "data_pipeline_version": "1.0.0",
+    "training_file": "ratings_train.csv",
+    "training_file_sha256": "42948fce3c13bbb4f66c6e6698f2767bb48d28d94512d20cbb0b28e07c5a866d",
+    "catalogue_file_sha256": "77c1c347d71789845efb0305331e1c41f493bb89bc5fedc4f558ebb1a60f81df",
+    "index_map_file": "movie_index_map.csv",
+    "index_map_file_sha256": "a250ba4b5d1982486b25d33be3c25cb1d802556c8bb143771d7aac5d6c74dbd1",
+    "test_file_used": false,
+    "test_file": "ratings_test.csv",
+    "test_file_sha256": "cfcff7e4779bcd3f57593344533e8460ed9e5ee85402adf1cca2ce354e944a88",
+    "cf_model_content_sha256": "f361b98dc25ef480d34b0349ab50176feb5fe4be26bc5a45f006aabb069bd2df",
+    "popularity_baseline_sha256": "51810454cdef6cfe29a4801c951241ad729e9a734bebd1c7ceaeee53b7d0fa95"
+  },
+  "protocol": {
+    "k": 10,
+    "candidate_pool": 100,
+    "mode_weights": {
+      "safe": 0.15,
+      "balanced": 0.35,
+      "adventurous": 0.6
+    },
+    "users": "10000 of 195687 evaluated test users, sampled with seed 42",
+    "relevance": "held-out rating >= 3.5",
+    "novelty": "mean -log2(training raters / training users) of the list, in bits",
+    "intra_list_diversity": "mean pairwise genre Jaccard distance within the list",
+    "overlap_with_cf": "share of the plain CF top-K movies also in the list (users with a CF list)",
+    "ndcg_difference_vs_cf": "paired per-user difference, normal-approximation 95% interval"
+  },
+  "results": {
+    "item_based_cf": {
+      "precision": 0.10344,
+      "recall": 0.08220523656333974,
+      "ndcg": 0.129897155862485,
+      "users": 10000,
+      "users_with_full_list": 1.0,
+      "catalogue_coverage": 0.473954,
+      "novelty_bits": 2.829340116269439,
+      "intra_list_diversity": 0.7378285231435231,
+      "overlap_with_cf": 1.0,
+      "ndcg_difference_vs_cf": {
+        "mean": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.0
+      }
+    },
+    "safe": {
+      "precision": 0.10293,
+      "recall": 0.0814504776397778,
+      "ndcg": 0.12649050845307797,
+      "users": 10000,
+      "users_with_full_list": 1.0,
+      "catalogue_coverage": 0.509669,
+      "novelty_bits": 2.9459083631034773,
+      "intra_list_diversity": 0.7693729687103021,
+      "overlap_with_cf": 0.89836,
+      "ndcg_difference_vs_cf": {
+        "mean": -0.0034066474094069923,
+        "ci95_low": -0.004360100295237244,
+        "ci95_high": -0.0024531945235767407
+      }
+    },
+    "balanced": {
+      "precision": 0.09464,
+      "recall": 0.07411876253904025,
+      "ndcg": 0.11185242530290597,
+      "users": 10000,
+      "users_with_full_list": 1.0,
+      "catalogue_coverage": 0.575572,
+      "novelty_bits": 3.2698818164726022,
+      "intra_list_diversity": 0.8193742715001048,
+      "overlap_with_cf": 0.7064600000000001,
+      "ndcg_difference_vs_cf": {
+        "mean": -0.018044730559578996,
+        "ci95_low": -0.02001336693742055,
+        "ci95_high": -0.016076094181737444
+      }
+    },
+    "adventurous": {
+      "precision": 0.07277,
+      "recall": 0.053343127245695225,
+      "ndcg": 0.0826816448813449,
+      "users": 10000,
+      "users_with_full_list": 1.0,
+      "catalogue_coverage": 0.69633,
+      "novelty_bits": 4.0266665366643455,
+      "intra_list_diversity": 0.8611454872534873,
+      "overlap_with_cf": 0.38143,
+      "ndcg_difference_vs_cf": {
+        "mean": -0.04721551098114008,
+        "ci95_low": -0.05024519282200237,
+        "ci95_high": -0.04418582914027779
+      }
+    },
+    "popularity": {
+      "precision": 0.0678,
+      "recall": 0.052703919624614924,
+      "ndcg": 0.08261013304737037,
+      "users": 10000,
+      "users_with_full_list": 1.0,
+      "catalogue_coverage": 0.030189,
+      "novelty_bits": 1.5301632414008517,
+      "intra_list_diversity": 0.7834715795254128,
+      "overlap_with_cf": 0.18767999999999999,
+      "ndcg_difference_vs_cf": {
+        "mean": -0.0472870228151146,
+        "ci95_low": -0.05067153351698123,
+        "ci95_high": -0.043902512113247964
+      }
+    }
+  },
+  "run": {
+    "generated_at_utc": "2026-11-24T23:18:03+00:00",
+    "recommendation_seconds": 22.4,
+    "total_seconds": 44.9
+  }
+}

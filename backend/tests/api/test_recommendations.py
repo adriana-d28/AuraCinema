@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.services.recommendation_service import (
     COLD_START_MESSAGE,
+    DISCOVERY_CANDIDATES,
     Recommenders,
     load_recommenders,
 )
@@ -40,7 +41,13 @@ def calls(client: TestClient):
         received["popularity"] = (n, set(exclude_movie_ids))
         return [(318, 90467.0), (2571, 86183.0)]
 
-    app.dependency_overrides[load_recommenders] = lambda: Recommenders(fake_cf, fake_popularity)
+    def fake_discovery(candidates, n, mode, genres):
+        received["discovery"] = (list(candidates), n, mode, dict(genres))
+        return list(reversed(candidates))[:n]  # a visible change of order
+
+    app.dependency_overrides[load_recommenders] = lambda: Recommenders(
+        fake_cf, fake_popularity, fake_discovery
+    )
     yield received
     app.dependency_overrides.pop(load_recommenders, None)
 
@@ -60,6 +67,7 @@ def test_new_user_gets_popular_movies_with_the_cold_start_message(
         "source": "popularity",
         "personalized": False,
         "message": COLD_START_MESSAGE,
+        "discovery_mode": None,  # popularity results are never re-ranked
         "items": [
             {
                 "movie_id": 318,
@@ -89,6 +97,7 @@ def test_new_user_gets_popular_movies_with_the_cold_start_message(
         ],
     }
     assert calls["popularity"] == (10, set())  # default limit, nothing to exclude
+    assert "discovery" not in calls
 
 
 def test_personalised_recommendations_use_only_the_callers_ratings(
@@ -104,14 +113,48 @@ def test_personalised_recommendations_use_only_the_callers_ratings(
 
     assert response.status_code == 200
     body = response.json()
-    assert calls["cf"] == ({1: 5.0, 318: 2.0}, 5)  # Alice's ratings only, never Bob's
-    assert (body["source"], body["personalized"], body["message"]) == (
+    # Alice's ratings only, never Bob's. Discovery Mode is off by default: plain CF.
+    assert calls["cf"] == ({1: 5.0, 318: 2.0}, 5)
+    assert "discovery" not in calls
+    assert (body["source"], body["personalized"], body["message"], body["discovery_mode"]) == (
         "collaborative_filtering",
         True,
+        None,
         None,
     )
     # Order and ranks follow the model; the rated movie 1 is removed; 2571 (watchlist) stays.
     assert [(item["rank"], item["movie_id"]) for item in body["items"]] == [(1, 2571), (2, 3114)]
+
+
+def test_discovery_mode_reranks_a_candidate_pool_and_is_validated(
+    client: TestClient, alice_headers, calls
+):
+    rate(client, alice_headers, {1: 5.0, 318: 2.0})
+    assert client.put("/api/v1/watchlist/2571", headers=alice_headers).status_code == 201
+
+    response = client.get(
+        URL, params={"limit": 5, "discovery_mode": "balanced"}, headers=alice_headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert calls["cf"] == ({1: 5.0, 318: 2.0}, DISCOVERY_CANDIDATES)  # a pool, not just 5
+    # The re-ranking receives unrated catalogue movies with their genres: the rated
+    # movie 1 is removed before it, while 2571 (on the watchlist) stays.
+    candidates, n, mode, genres = calls["discovery"]
+    assert [movie_id for movie_id, _ in candidates] == [2571, 3114]
+    assert (n, mode, genres[2571]) == (5, "balanced", ["Action", "Sci-Fi", "Thriller"])
+    # Order and ranks follow the re-ranking; the response names the mode.
+    assert [(item["rank"], item["movie_id"]) for item in body["items"]] == [(1, 3114), (2, 2571)]
+    assert body["discovery_mode"] == "balanced"
+
+    for other in ("safe", "adventurous"):
+        response = client.get(URL, params={"discovery_mode": other}, headers=alice_headers)
+        assert response.json()["discovery_mode"] == calls["discovery"][2] == other
+
+    response = client.get(URL, params={"discovery_mode": "random"}, headers=alice_headers)
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["query", "discovery_mode"]
 
 
 @pytest.mark.parametrize("limit", ["0", "21", "-1", "ten", "2.5"])

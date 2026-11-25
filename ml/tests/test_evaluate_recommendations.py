@@ -21,6 +21,7 @@ from src.evaluate_recommendations import (
     ranking_metrics,
     relevant_items,
     run_cf_validation,
+    run_discovery_evaluation,
     run_offline_evaluation,
     split_for_validation,
 )
@@ -111,3 +112,15 @@ def test_final_evaluation_rejects_a_model_trained_on_other_data(prepared_models,
     path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(DataValidationError, match="trained on the current"):
         run_offline_evaluation(prepared_models.processed, models, tmp_path / "out")
+
+
+def test_discovery_measurement_compares_every_mode_with_plain_cf(prepared_models, tmp_path):
+    result = run_discovery_evaluation(prepared_models.processed, prepared_models.models, tmp_path)
+    results = result["results"]
+    assert set(results) == {"item_based_cf", "safe", "balanced", "adventurous", "popularity"}
+    # Plain CF is the reference: it keeps all of itself and differs from itself by 0.
+    assert results["item_based_cf"]["overlap_with_cf"] == 1.0
+    assert results["item_based_cf"]["ndcg_difference_vs_cf"]["mean"] == 0.0
+    for method in results.values():
+        assert 0.0 <= method["intra_list_diversity"] <= 1.0 and method["novelty_bits"] >= 0.0
+    assert (tmp_path / OUTPUT_FILES["discovery"]).is_file()

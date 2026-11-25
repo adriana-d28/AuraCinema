@@ -1,8 +1,9 @@
 // The essential Phase 7.3 journeys: catalogue (Discover), movie details with
-// rating and watchlist, and the Watchlist page. They run through the real
+// rating and watchlist, and the Watchlist page; plus the Phase 7.4
+// Recommendations page with Discovery Mode. They run through the real
 // routes, guards and AuthProvider with a signed-in session. Only the network
 // is replaced: fetch is a fake that answers like the backend
-// (backend/app/api/routes/movies.py, ratings.py and watchlist.py).
+// (backend/app/api/routes/movies.py, ratings.py, watchlist.py and recommendations.py).
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -227,5 +228,76 @@ describe('Watchlist page', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Your session has ended.')
     expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull()
+  })
+})
+
+describe('Recommendations page', () => {
+  const recommended = (movie: MovieSummary, rank: number) => ({ ...movie, rank, score: 1 / rank })
+
+  it('shows the plain personalised list first, and Discovery Mode can be turned on, changed and off', async () => {
+    let attempts = 0
+    const requests = fakeBackend(({ path, query }) => {
+      if (path !== '/recommendations') return undefined
+      attempts += 1
+      if (attempts === 1) return Response.json({ detail: 'Recommendations are temporarily unavailable' }, { status: 503 })
+      const mode = query.get('discovery_mode')
+      const items = mode === 'adventurous' ? [recommended(HEAT, 1)] : [recommended(MATRIX, 1), recommended(HEAT, 2)]
+      return Response.json({ source: 'collaborative_filtering', personalized: true, message: null, discovery_mode: mode, items })
+    })
+    const router = renderSignedIn('/recommendations')
+    const discoverySwitch = () => screen.getByRole('switch', { name: 'Discovery Mode' })
+    const listLinks = () =>
+      within(screen.getByRole('list', { name: 'Recommended films, best first' })).getAllByRole('link')
+
+    // The service is unavailable at first; "Try again" repeats the request.
+    expect(await screen.findByRole('heading', { name: 'Recommendations are temporarily unavailable' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    // Discovery Mode starts OFF: plain personalised list, no mode sent, no mode options shown.
+    expect(await screen.findByText('Personalised')).toBeInTheDocument()
+    expect(listLinks().map((link) => link.getAttribute('href'))).toEqual(['/movies/2571', '/movies/6'])
+    expect(requests.at(-1)?.query.has('discovery_mode')).toBe(false)
+    expect(discoverySwitch()).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByRole('radio', { name: 'Balanced' })).not.toBeInTheDocument()
+
+    // Turned on: Balanced is the default mode.
+    fireEvent.click(discoverySwitch())
+    expect(await screen.findByText('Personalised · Balanced')).toBeInTheDocument()
+    expect(requests.at(-1)?.query.get('discovery_mode')).toBe('balanced')
+    expect(screen.getByRole('radio', { name: 'Balanced' })).toBeChecked()
+
+    // Adventurous: a new request, a new list, and the mode kept in the address.
+    fireEvent.click(screen.getByRole('radio', { name: 'Adventurous' }))
+    expect(await screen.findByText('Personalised · Adventurous')).toBeInTheDocument()
+    expect(requests.at(-1)?.query.get('discovery_mode')).toBe('adventurous')
+    expect(listLinks()).toHaveLength(1)
+    expect(router.state.location.search).toBe('?mode=adventurous')
+
+    // Turned off again: back to the plain list.
+    fireEvent.click(discoverySwitch())
+    expect(await screen.findByText('Personalised')).toBeInTheDocument()
+    expect(requests.at(-1)?.query.has('discovery_mode')).toBe(false)
+    expect(router.state.location.search).toBe('')
+  })
+
+  it('explains cold-start recommendations and disables the Discovery Mode switch', async () => {
+    fakeBackend(({ path }) => {
+      if (path === '/recommendations') {
+        return Response.json({
+          source: 'popularity',
+          personalized: false,
+          message: 'Discover popular movies while we get to know your taste!',
+          discovery_mode: null,
+          items: [recommended(HEAT, 1)],
+        })
+      }
+    })
+    renderSignedIn('/recommendations')
+
+    expect(await screen.findByText('Discover popular movies while we get to know your taste!')).toBeInTheDocument()
+    expect(screen.getByText('Popular picks')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Discovery Mode' })).toBeDisabled()
+    expect(screen.queryByRole('radio', { name: 'Safe' })).not.toBeInTheDocument()
+    expect(screen.getByText('Available once your recommendations are personalised.')).toBeInTheDocument()
   })
 })

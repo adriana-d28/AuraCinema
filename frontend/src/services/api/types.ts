@@ -72,11 +72,15 @@ export interface RecommendedMovie extends Movie {
   poster_url: string | null
 }
 
+/** How adventurous personalised recommendations are (the ?discovery_mode= value). */
+export type DiscoveryMode = 'safe' | 'balanced' | 'adventurous'
+
 /** Response of GET /recommendations (login required). */
 export interface RecommendationResponse {
   source: RecommendationSource
   personalized: boolean
   message: string | null // Cold-start message when source is "popularity"
+  discovery_mode: DiscoveryMode | null // null when Discovery Mode is off, and for popularity results
   items: RecommendedMovie[]
 }
 

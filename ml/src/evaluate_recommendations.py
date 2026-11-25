@@ -10,6 +10,10 @@ Two separate entry points, so the data each one may read is explicit:
   ``ratings_test.csv``. It only LOADS the two fixed models (no training happens here) and
   reads the test file after both are loaded; test ratings are used only to decide which
   recommended movies are relevant.
+* ``discovery`` - measurement of the three Discovery Mode settings (Phase 7.4) with the same
+  fixed models and test relevance as ``evaluate``: relevance, novelty, intra-list diversity,
+  coverage and overlap with the plain CF list. The mode weights are fixed in
+  ``src/discovery_mode.py`` before this run; nothing is tuned here.
 
 Protocol (agreed in Phase 4, §12.4): a held-out movie is relevant when its rating is
 >= 3.5; K = 5, 10 and 20; candidates = catalogue movies the user has not rated in the
@@ -20,6 +24,7 @@ Usage (from the ``ml`` folder)::
 
     python -m src.evaluate_recommendations validate     # internal validation (training file only)
     python -m src.evaluate_recommendations evaluate     # final test-set comparison
+    python -m src.evaluate_recommendations discovery    # Discovery Mode measurement
 """
 
 from __future__ import annotations
@@ -52,6 +57,7 @@ from src.collaborative_filtering import (
     truncate_neighbours,
     with_scoring,
 )
+from src.discovery_mode import CANDIDATE_POOL, DISCOVERY_WEIGHTS, rerank
 from src.popularity_baseline import load_popularity_baseline, load_training_ratings, top_n_popular_movies
 from src.prepare_data import OUTPUT_FILES as DATA_FILES
 from src.prepare_data import DataValidationError, _json_default, sha256_of, split_ratings_by_user
@@ -62,11 +68,17 @@ VALIDATION_FRACTION = 0.2
 CANDIDATE_NEIGHBOURS = (20, 50, 100)
 PRIMARY_METRIC = ("ndcg", 10)
 USER_BATCH = 2000
+# Discovery Mode measurement: list length shown by the API by default, and a fixed-seed
+# user sample (the greedy re-ranking runs in Python, once per user and mode).
+DISCOVERY_K = 10
+DISCOVERY_SAMPLE_USERS = 10_000
+DISCOVERY_SEED = 42
 
 DEFAULT_EVALUATION_DIR = DEFAULT_VALIDATION_RESULTS.parent
 OUTPUT_FILES = {
     "validation": DEFAULT_VALIDATION_RESULTS.name,
     "evaluation": "offline_evaluation_results.json",
+    "discovery": "discovery_mode_results.json",
 }
 RATING_COLUMNS = ["userId", "movieId", "rating", "timestamp"]
 
@@ -321,25 +333,14 @@ def run_offline_evaluation(
     output_path = Path(output_dir) / OUTPUT_FILES["evaluation"]
     _refuse_to_overwrite(output_path, overwrite)
     started = time.perf_counter()
-    processed_dir = Path(processed_dir)
 
-    # 1. Fixed models and training history (no training happens in this function).
-    train, index_map, source = load_verified_training_inputs(processed_dir)
-    cf_model, cf_manifest = load_cf_model(model_dir, processed_dir)
-    ranking, popularity_manifest = load_popularity_baseline(model_dir)
-    trained_on = {cf_manifest["source"]["training_file_sha256"], popularity_manifest["source"]["training_file_sha256"]}
-    if trained_on != {source["training_file_sha256"]}:
-        raise DataValidationError("both models must be trained on the current ratings_train.csv; retrain them")
-
-    # 2. Test ratings: read only now, used only to define relevance.
-    dataset = json.loads((processed_dir / DATA_FILES["manifest"]).read_text(encoding="utf-8"))
-    test_path = processed_dir / DATA_FILES["test"]
-    if sha256_of(test_path) != dataset["outputs"]["test"]["sha256"]:
-        raise DataValidationError(f"{test_path.name} does not match the SHA-256 in {DATA_FILES['manifest']}")
-    test = load_training_ratings(test_path)  # same structural validation as the training file
-    relevant, population = relevant_items(test)
+    # 1-2. Fixed models, training history and test relevance (no training happens here).
+    fixed = _load_fixed_models_and_test_relevance(Path(processed_dir), model_dir)
+    train, index_map, source = fixed["train"], fixed["index_map"], fixed["source"]
+    cf_model, cf_manifest = fixed["cf_model"], fixed["cf_manifest"]
+    ranking, popularity_manifest = fixed["ranking"], fixed["popularity_manifest"]
+    relevant, population = fixed["relevant"], fixed["population"]
     users = np.array(sorted(relevant), dtype="int64")
-    del test
 
     # 3. Both methods, same users, same candidates (catalogue minus the user's training movies).
     timings = {}
@@ -360,7 +361,7 @@ def run_offline_evaluation(
         "source": {
             **source,
             "test_file": DATA_FILES["test"],
-            "test_file_sha256": dataset["outputs"]["test"]["sha256"],
+            "test_file_sha256": fixed["test_sha256"],
             "cf_model_content_sha256": cf_manifest["output"]["content_sha256"],
             "cf_neighbours": cf_model.n_neighbours,
             "cf_scoring": cf_model.scoring,
@@ -387,8 +388,210 @@ def run_offline_evaluation(
     return output
 
 
+def _load_fixed_models_and_test_relevance(processed_dir: Path, model_dir: Path) -> dict:
+    """Load the two fixed models, the verified training history and the test relevance.
+
+    Shared by ``evaluate`` and ``discovery``. No training happens here; the test file is
+    read only after both models are loaded and is used only to decide relevance.
+    """
+    # 1. Fixed models and training history.
+    train, index_map, source = load_verified_training_inputs(processed_dir)
+    cf_model, cf_manifest = load_cf_model(model_dir, processed_dir)
+    ranking, popularity_manifest = load_popularity_baseline(model_dir)
+    trained_on = {cf_manifest["source"]["training_file_sha256"], popularity_manifest["source"]["training_file_sha256"]}
+    if trained_on != {source["training_file_sha256"]}:
+        raise DataValidationError("both models must be trained on the current ratings_train.csv; retrain them")
+
+    # 2. Test ratings: read only now, used only to define relevance.
+    dataset = json.loads((processed_dir / DATA_FILES["manifest"]).read_text(encoding="utf-8"))
+    test_path = processed_dir / DATA_FILES["test"]
+    if sha256_of(test_path) != dataset["outputs"]["test"]["sha256"]:
+        raise DataValidationError(f"{test_path.name} does not match the SHA-256 in {DATA_FILES['manifest']}")
+    test = load_training_ratings(test_path)  # same structural validation as the training file
+    relevant, population = relevant_items(test)
+    return {
+        "train": train,
+        "index_map": index_map,
+        "source": source,
+        "cf_model": cf_model,
+        "cf_manifest": cf_manifest,
+        "ranking": ranking,
+        "popularity_manifest": popularity_manifest,
+        "relevant": relevant,
+        "population": population,
+        "test_sha256": dataset["outputs"]["test"]["sha256"],
+    }
+
+
 # ---------------------------------------------------------------------------
-# 5. Helpers and command line
+# 5. Discovery Mode measurement (Phase 7.4)
+# ---------------------------------------------------------------------------
+
+
+def intra_list_diversity(movie_ids: Sequence[int], genres: dict[int, set[str]]) -> float:
+    """Mean genre Jaccard DISTANCE over all pairs of a list (Ziegler et al., 2005).
+
+    1 = no two movies share a genre; 0 = all movies have the same genres. Two movies
+    without genres count as distance 1. Undefined (NaN) for lists shorter than 2.
+    """
+    distances = []
+    for position, first in enumerate(movie_ids):
+        for second in movie_ids[position + 1 :]:
+            a, b = genres.get(first, set()), genres.get(second, set())
+            union = len(a | b)
+            distances.append(1.0 - (len(a & b) / union if union else 0.0))
+    return float(np.mean(distances)) if distances else math.nan
+
+
+def mean_self_information(movie_ids: Sequence[int], rating_counts: dict[int, int], n_users: int) -> float:
+    """Mean novelty of a list in bits: ``-log2(raters(i) / users)`` (Zhou et al., 2010).
+
+    ``raters(i)`` is the movie's number of training ratings (one per user and movie).
+    """
+    if not movie_ids:
+        return math.nan
+    return float(np.mean([-math.log2(max(rating_counts.get(movie, 1), 1) / n_users) for movie in movie_ids]))
+
+
+def load_catalogue_genres(processed_dir: Path) -> dict[int, set[str]]:
+    """``{movieId: genres}`` from ``movies_catalogue.csv``; "(no genres listed)" = no genres.
+
+    The backend reads the same genres from PostgreSQL (``Movie.genre_list``).
+    """
+    catalogue = pd.read_csv(Path(processed_dir) / DATA_FILES["catalogue"], usecols=["movieId", "genres"])
+    return {
+        int(movie_id): set() if text == "(no genres listed)" else set(str(text).split("|"))
+        for movie_id, text in zip(catalogue["movieId"], catalogue["genres"], strict=True)
+    }
+
+
+def run_discovery_evaluation(
+    processed_dir: Path = DEFAULT_PROCESSED_DIR,
+    model_dir: Path = DEFAULT_MODEL_DIR,
+    output_dir: Path = DEFAULT_EVALUATION_DIR,
+    overwrite: bool = False,
+    sample_users: int = DISCOVERY_SAMPLE_USERS,
+) -> dict:
+    """Measure the Discovery Mode settings against the plain CF list (and popularity).
+
+    For a fixed-seed sample of the evaluated test users, the CF model produces its top
+    ``CANDIDATE_POOL`` candidates from the user's training ratings (as the API does), and
+    each mode re-ranks them with ``discovery_mode.rerank``. Every list has ``DISCOVERY_K``
+    movies and is measured on: Precision/Recall/NDCG@K (test relevance), novelty (mean
+    self-information), intra-list genre diversity, catalogue coverage, and the share of
+    the plain CF top-K that the list keeps. A paired 95% interval of the NDCG@K difference
+    with plain CF tells whether a relevance drop is distinguishable from sampling noise.
+    """
+    output_path = Path(output_dir) / OUTPUT_FILES["discovery"]
+    _refuse_to_overwrite(output_path, overwrite)
+    started = time.perf_counter()
+    processed_dir = Path(processed_dir)
+
+    fixed = _load_fixed_models_and_test_relevance(processed_dir, model_dir)
+    train, index_map, ranking = fixed["train"], fixed["index_map"], fixed["ranking"]
+    everyone = np.array(sorted(fixed["relevant"]), dtype="int64")
+    rng = np.random.default_rng(DISCOVERY_SEED)
+    users = np.sort(rng.choice(everyone, size=min(sample_users, len(everyone)), replace=False))
+    relevant = {int(user): fixed["relevant"][int(user)] for user in users}
+    history = train[train["userId"].isin(users)]
+
+    genres = load_catalogue_genres(processed_dir)
+    rating_counts = dict(zip(ranking["movieId"].tolist(), ranking["rating_count"].tolist(), strict=True))
+    n_users = int(train["userId"].nunique())
+
+    # Candidates: the CF top-CANDIDATE_POOL of each user, as requested by the API. Only
+    # the order matters to the re-ranking, so a rank-based placeholder score is passed.
+    step = time.perf_counter()
+    candidates = cf_recommendation_lists(fixed["cf_model"], history, index_map, users, CANDIDATE_POOL)
+    lists = {"item_based_cf": {user: ids[:DISCOVERY_K] for user, ids in candidates.items()}}
+    for mode in DISCOVERY_WEIGHTS:
+        lists[mode] = {}
+        for user, ids in candidates.items():
+            ranked = [(movie_id, -float(rank)) for rank, movie_id in enumerate(ids)]
+            reranked = rerank(ranked, DISCOVERY_K, mode, genres, rating_counts)
+            lists[mode][user] = [movie_id for movie_id, _ in reranked]
+    lists["popularity"] = popularity_recommendation_lists(ranking, history, users, DISCOVERY_K)
+    recommendation_seconds = round(time.perf_counter() - step, 1)
+
+    catalogue = set(index_map["movieId"].tolist())
+    plain = lists["item_based_cf"]
+
+    def per_user_ndcg(method_lists):
+        return np.array([ranking_metrics(method_lists[user], relevant[user], DISCOVERY_K)["ndcg"] for user in relevant])
+
+    plain_ndcg = per_user_ndcg(plain)
+    results = {}
+    for method, method_lists in lists.items():
+        check_lists_respect_candidates(method_lists, history, catalogue)
+        metrics = macro_average(method_lists, relevant, (DISCOVERY_K,), len(catalogue))[f"@{DISCOVERY_K}"]
+        difference = per_user_ndcg(method_lists) - plain_ndcg
+        margin = 1.96 * float(difference.std(ddof=1)) / math.sqrt(len(difference)) if len(difference) > 1 else 0.0
+        results[method] = {
+            **metrics,
+            "novelty_bits": float(
+                np.nanmean([mean_self_information(method_lists[user], rating_counts, n_users) for user in relevant])
+            ),
+            "intra_list_diversity": float(
+                np.nanmean([intra_list_diversity(method_lists[user], genres) for user in relevant])
+            ),
+            "overlap_with_cf": float(
+                np.mean(
+                    [
+                        len(set(method_lists[user]) & set(plain[user])) / len(plain[user])
+                        for user in relevant
+                        if plain[user]
+                    ]
+                )
+            ),
+            "ndcg_difference_vs_cf": {
+                "mean": float(difference.mean()),
+                "ci95_low": float(difference.mean()) - margin,
+                "ci95_high": float(difference.mean()) + margin,
+            },
+        }
+        logger.info(
+            "%s: NDCG@%d=%.4f novelty=%.2f ILD=%.3f overlap=%.2f",
+            method,
+            DISCOVERY_K,
+            results[method]["ndcg"],
+            results[method]["novelty_bits"],
+            results[method]["intra_list_diversity"],
+            results[method]["overlap_with_cf"],
+        )
+
+    output = {
+        "purpose": "measurement of the Discovery Mode settings on ratings_test.csv; weights fixed before this run",
+        "source": {
+            **fixed["source"],
+            "test_file": DATA_FILES["test"],
+            "test_file_sha256": fixed["test_sha256"],
+            "cf_model_content_sha256": fixed["cf_manifest"]["output"]["content_sha256"],
+            "popularity_baseline_sha256": fixed["popularity_manifest"]["output"]["sha256"],
+        },
+        "protocol": {
+            "k": DISCOVERY_K,
+            "candidate_pool": CANDIDATE_POOL,
+            "mode_weights": DISCOVERY_WEIGHTS,
+            "users": f"{len(users)} of {len(everyone)} evaluated test users, sampled with seed {DISCOVERY_SEED}",
+            "relevance": fixed["population"]["relevance_rule"],
+            "novelty": "mean -log2(training raters / training users) of the list, in bits",
+            "intra_list_diversity": "mean pairwise genre Jaccard distance within the list",
+            "overlap_with_cf": "share of the plain CF top-K movies also in the list (users with a CF list)",
+            "ndcg_difference_vs_cf": "paired per-user difference, normal-approximation 95% interval",
+        },
+        "results": results,
+        "run": {
+            "generated_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+            "recommendation_seconds": recommendation_seconds,
+            "total_seconds": round(time.perf_counter() - started, 1),
+        },
+    }
+    _write_json(output, output_path)
+    return output
+
+
+# ---------------------------------------------------------------------------
+# 6. Helpers and command line
 # ---------------------------------------------------------------------------
 
 
@@ -411,7 +614,7 @@ def _format_metrics(metrics: dict) -> str:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Offline evaluation of the AuraCinema recommenders.")
-    parser.add_argument("command", choices=["validate", "evaluate"])
+    parser.add_argument("command", choices=["validate", "evaluate", "discovery"])
     parser.add_argument("--processed-dir", type=Path, default=DEFAULT_PROCESSED_DIR)
     parser.add_argument("--model-dir", type=Path, default=DEFAULT_MODEL_DIR)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_EVALUATION_DIR)
@@ -425,8 +628,10 @@ def main(argv: list[str] | None = None) -> None:
     try:
         if args.command == "validate":
             run_cf_validation(args.processed_dir, args.output_dir, overwrite=args.overwrite)
-        else:
+        elif args.command == "evaluate":
             run_offline_evaluation(args.processed_dir, args.model_dir, args.output_dir, overwrite=args.overwrite)
+        else:
+            run_discovery_evaluation(args.processed_dir, args.model_dir, args.output_dir, overwrite=args.overwrite)
     except (FileNotFoundError, FileExistsError, DataValidationError) as error:
         logger.error("%s", error)
         raise SystemExit(1) from error

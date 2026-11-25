@@ -12,6 +12,7 @@ and unknown movie IDs, rank numbering and missing posters
 
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 from sqlalchemy.orm import Session
 
@@ -151,17 +152,19 @@ def test_a_model_that_fails_to_load_is_reported_and_left_unavailable(monkeypatch
         raise ValueError("cf_item_neighbours.npz does not match the hash in the manifest")
 
     def working_popularity_loader(model_dir):
-        return ["ranking rows"], {"baseline": {"version": "1.0.0"}}
+        ranking = pd.DataFrame({"movieId": [318], "rating_count": [95088]})
+        return ranking, {"baseline": {"version": "1.0.0"}}
 
     fake_cf_module = SimpleNamespace(load_cf_model=broken_cf_loader, recommend_movies=None)
     fake_popularity_module = SimpleNamespace(
         load_popularity_baseline=working_popularity_loader,
         top_n_popular_movies=lambda ranking, n, exclude_movie_ids=None: [(318, 1.0)],
     )
+    fake_discovery_module = SimpleNamespace(rerank=lambda *args, rating_counts: rating_counts)
     monkeypatch.setattr(
         recommendation_service,
         "_import_ml_modules",
-        lambda: (fake_cf_module, fake_popularity_module),
+        lambda: (fake_cf_module, fake_popularity_module, fake_discovery_module),
     )
 
     # __wrapped__ is the original function behind lru_cache, so this test neither
@@ -170,6 +173,8 @@ def test_a_model_that_fails_to_load_is_reported_and_left_unavailable(monkeypatch
 
     assert recommenders.cf is None  # unavailable, not replaced by popularity
     assert recommenders.popularity(1, exclude_movie_ids=set()) == [(318, 1.0)]
+    # Discovery Mode is loaded with the baseline's rating counts (used for novelty).
+    assert recommenders.discovery() == {318: 95088}
     assert "Could not load the collaborative filtering model" in caplog.text
 
 
@@ -200,3 +205,11 @@ def test_real_model_files_load_and_recommend():
     assert len(popular) == 10 and 318 not in {m for m, _ in popular}
     # Only plain (movieId, score) pairs leave the ML component.
     assert all(isinstance(m, int) and isinstance(s, float) for m, s in cf_results + popular)
+
+    # Discovery Mode re-ranks the same pool size as its offline evaluation.
+    from src.discovery_mode import CANDIDATE_POOL
+
+    assert recommendation_service.DISCOVERY_CANDIDATES == CANDIDATE_POOL
+    candidates = recommenders.cf(history, CANDIDATE_POOL)
+    adventurous = recommenders.discovery(candidates, 10, "adventurous", {})
+    assert len(adventurous) == 10 and set(adventurous) <= set(candidates)

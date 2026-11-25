@@ -7,12 +7,16 @@ ml/data/models (see MODEL_DIR below):
 - item-based collaborative filtering (CF), loaded with ``load_cf_model`` and used
   through ``recommend_movies``;
 - the popularity baseline, loaded with ``load_popularity_baseline`` and used
-  through ``top_n_popular_movies``.
+  through ``top_n_popular_movies``;
+- the Discovery Mode re-ranking ``discovery_mode.rerank`` (Phase 7.4), which
+  re-orders the CF candidates and needs the baseline's training rating counts
+  (for novelty).
 
 This module only (1) loads those files once, (2) reads the current user's ratings
-from PostgreSQL, (3) decides which recommender suits the user, (4) calls it, and
-(5) turns the returned (movieId, score) pairs into API objects with the existing
-catalogue helper ``movie_service.build_recommended_movies``.
+from PostgreSQL, (3) decides which recommender suits the user, (4) calls it (and,
+for CF, applies the selected Discovery Mode), and (5) turns the returned
+(movieId, score) pairs into API objects with the existing catalogue helper
+``movie_service.build_recommended_movies``.
 
 Cold start vs. loading failure are deliberately treated differently:
 - a user with too little rating history gets the popularity list ON PURPOSE;
@@ -30,7 +34,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.schemas.recommendation import RecommendationResponse, RecommendationSource
+from app.schemas.recommendation import DiscoveryMode, RecommendationResponse, RecommendationSource
 from app.services import movie_service, rating_service
 
 logger = logging.getLogger(__name__)
@@ -66,11 +70,20 @@ MIN_RATINGS_FOR_CF = 2
 
 COLD_START_MESSAGE = "Discover popular movies while we get to know your taste!"
 
+# Number of CF candidates re-ranked by Discovery Mode. Must stay equal to
+# CANDIDATE_POOL in ml/src/discovery_mode.py, the value used by the offline
+# evaluation of the modes (checked by test_real_model_files_load_and_recommend).
+DISCOVERY_CANDIDATES = 100
+
 # Signatures of the two loaded recommenders, as used by this service:
 #   cf(history, n)                         -> [(movieId, score), ...] best first
 #   popularity(n, exclude_movie_ids=ids)   -> [(movieId, score), ...] best first
+#   discovery(candidates, n, mode, genres) -> the candidates re-ordered, top n
 CfRecommender = Callable[[Mapping[int, float], int], list[tuple[int, float]]]
 PopularityRecommender = Callable[..., list[tuple[int, float]]]
+DiscoveryReranker = Callable[
+    [list[tuple[int, float]], int, str, Mapping[int, list[str]]], list[tuple[int, float]]
+]
 
 
 @dataclass(frozen=True)
@@ -85,6 +98,8 @@ class Recommenders:
 
     cf: CfRecommender | None
     popularity: PopularityRecommender | None
+    # Loaded together with the popularity baseline, whose rating counts it uses.
+    discovery: DiscoveryReranker | None = None
 
 
 class RecommendationUnavailableError(Exception):
@@ -101,9 +116,9 @@ def _import_ml_modules():
     if str(ML_DIR) not in sys.path:
         # Appended (not inserted first) so the backend's own packages always win.
         sys.path.append(str(ML_DIR))
-    from src import collaborative_filtering, popularity_baseline
+    from src import collaborative_filtering, discovery_mode, popularity_baseline
 
-    return collaborative_filtering, popularity_baseline
+    return collaborative_filtering, popularity_baseline, discovery_mode
 
 
 @lru_cache(maxsize=1)
@@ -121,12 +136,12 @@ def load_recommenders() -> Recommenders:
     developer); API clients only ever see a generic 503 message.
     """
     try:
-        cf_module, popularity_module = _import_ml_modules()
+        cf_module, popularity_module, discovery_module = _import_ml_modules()
     except ImportError:
         logger.exception("Could not import the ML component from %s", ML_DIR)
         return Recommenders(cf=None, popularity=None)
 
-    cf = popularity = None
+    cf = popularity = discovery = None
     try:
         model, manifest = cf_module.load_cf_model(MODEL_DIR, processed_dir=MODEL_DIR)
         cf = partial(cf_module.recommend_movies, model)
@@ -143,7 +158,13 @@ def load_recommenders() -> Recommenders:
 
     try:
         ranking, manifest = popularity_module.load_popularity_baseline(MODEL_DIR)
+        # Novelty in Discovery Mode uses the same training rating counts. Both are
+        # assigned only once everything worked, so neither is ever half-loaded.
+        rating_counts = dict(
+            zip(ranking["movieId"].tolist(), ranking["rating_count"].tolist(), strict=True)
+        )
         popularity = partial(popularity_module.top_n_popular_movies, ranking)
+        discovery = partial(discovery_module.rerank, rating_counts=rating_counts)
         logger.info(
             "Popularity baseline loaded (version %s, %d movies)",
             manifest["baseline"]["version"],
@@ -152,7 +173,7 @@ def load_recommenders() -> Recommenders:
     except Exception:
         logger.exception("Could not load the popularity baseline")
 
-    return Recommenders(cf=cf, popularity=popularity)
+    return Recommenders(cf=cf, popularity=popularity, discovery=discovery)
 
 
 def get_rating_history(db: Session, user_id: int) -> dict[int, float]:
@@ -176,7 +197,11 @@ def has_enough_history_for_cf(history: Mapping[int, float]) -> bool:
 
 
 def recommend_for_user(
-    db: Session, user_id: int, limit: int, recommenders: Recommenders
+    db: Session,
+    user_id: int,
+    limit: int,
+    recommenders: Recommenders,
+    discovery_mode: DiscoveryMode | None = None,
 ) -> RecommendationResponse:
     """Build the recommendation response for one user.
 
@@ -184,7 +209,13 @@ def recommend_for_user(
     1. read the user's ratings ({movieId: rating});
     2. choose CF or popularity with the cold-start rule;
     3. ask the chosen recommender for ``limit`` (movieId, score) pairs; both
-       recommenders already leave out the movies the user has rated;
+       recommenders already leave out the movies the user has rated. For CF with a
+       ``discovery_mode``, ask for ``DISCOVERY_CANDIDATES`` candidates instead and
+       let the Discovery Mode re-ranking pick the final ``limit`` (see
+       ``_apply_discovery_mode``). ``None`` (Discovery Mode off, the default
+       of the API) keeps the plain CF order and does not use the re-ranking at
+       all, so plain CF never depends on it. Popularity results are never
+       re-ranked: without known preferences there is nothing to explore from;
     4. resolve the IDs against the movie catalogue (title, genres, poster);
     5. label the response with its source, so the frontend knows whether it is
        personalised.
@@ -198,7 +229,10 @@ def recommend_for_user(
         if recommenders.cf is None:
             raise RecommendationUnavailableError("collaborative filtering model not loaded")
         source = RecommendationSource.COLLABORATIVE_FILTERING
-        scored = recommenders.cf(history, limit)
+        if discovery_mode is None:
+            scored = recommenders.cf(history, limit)
+        else:
+            scored = _apply_discovery_mode(db, history, limit, discovery_mode, recommenders)
     else:
         if recommenders.popularity is None:
             raise RecommendationUnavailableError("popularity baseline not loaded")
@@ -222,8 +256,31 @@ def recommend_for_user(
         source=source,
         personalized=personalized,
         message=None if personalized else COLD_START_MESSAGE,
+        discovery_mode=discovery_mode if personalized else None,
         items=items,
     )
+
+
+def _apply_discovery_mode(
+    db: Session,
+    history: Mapping[int, float],
+    limit: int,
+    mode: DiscoveryMode,
+    recommenders: Recommenders,
+) -> list[tuple[int, float]]:
+    """CF candidates re-ranked by the selected Discovery Mode.
+
+    The re-ranking needs each candidate's genres, read from the catalogue. Only
+    unrated catalogue movies are passed to it, so it never spends a position on a
+    movie that would be dropped afterwards.
+    """
+    if recommenders.discovery is None:
+        raise RecommendationUnavailableError("Discovery Mode re-ranking not loaded")
+    candidates = _without_rated_movies(recommenders.cf(history, DISCOVERY_CANDIDATES), history)
+    movies = movie_service.get_movies_by_ids(db, [movie_id for movie_id, _ in candidates])
+    genres = {movie_id: movie.genre_list() for movie_id, movie in movies.items()}
+    in_catalogue = [(movie_id, score) for movie_id, score in candidates if movie_id in genres]
+    return recommenders.discovery(in_catalogue, limit, mode.value, genres)
 
 
 def _without_rated_movies(
