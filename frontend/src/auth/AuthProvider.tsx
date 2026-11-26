@@ -141,6 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => endSession('logout'), [endSession])
 
+  // Only while signed in: a late answer must not bring back an ended session.
+  const updateUser = useCallback((user: User) => {
+    setState((current) => (current.status === 'authenticated' ? { ...current, user } : current))
+  }, [])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status: state.status,
@@ -149,8 +154,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       endReason: state.endReason,
       login,
       logout,
+      updateUser,
     }),
-    [state, login, logout],
+    [state, login, logout, updateUser],
   )
 
   return <AuthContext value={value}>{children}</AuthContext>

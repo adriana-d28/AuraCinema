@@ -9,6 +9,7 @@ from app.models.utils import utc_now
 
 if TYPE_CHECKING:  # Imported for type hints only, avoiding circular imports.
     from app.models.rating import Rating
+    from app.models.user_picture import UserPicture
     from app.models.watchlist import WatchlistItem
 
 # RFC 5321 limits an email address path to 254 characters.
@@ -52,6 +53,13 @@ class User(Base):
     name: Mapped[str | None] = mapped_column(String(NAME_MAX_LENGTH), nullable=True)
     location: Mapped[str | None] = mapped_column(String(LOCATION_MAX_LENGTH), nullable=True)
     bio: Mapped[str | None] = mapped_column(String(BIO_MAX_LENGTH), nullable=True)
+    # When the profile picture was last uploaded; null when there is none.
+    # The image itself is in user_pictures (loaded only when requested); this
+    # column tells the client whether there is a picture without reading it,
+    # and changes on every upload, so the browser never shows an old copy.
+    picture_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # passive_deletes=True lets PostgreSQL's ON DELETE CASCADE remove child rows
     # instead of SQLAlchemy loading and deleting them one by one.
@@ -59,6 +67,9 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
     watchlist_items: Mapped[list["WatchlistItem"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+    picture: Mapped["UserPicture | None"] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
 

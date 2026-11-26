@@ -20,6 +20,9 @@ class UserRead(BaseModel):
     name: str | None
     location: str | None
     bio: str | None
+    # When the profile picture was last uploaded; null when there is none.
+    # The image is read separately, from GET /users/me/picture.
+    picture_updated_at: datetime | None
 
 
 class UserProfileUpdate(BaseModel):

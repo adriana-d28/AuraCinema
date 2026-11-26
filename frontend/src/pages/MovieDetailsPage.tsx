@@ -29,7 +29,7 @@ import { getMovieDetails } from '../services/api/movies'
 import { deleteRating, listMyRatings, saveRating } from '../services/api/ratings'
 import type { MovieDetails } from '../services/api/types'
 import { addToWatchlist, listMyWatchlist, removeFromWatchlist } from '../services/api/watchlist'
-import { formatRuntime } from '../utils/movieFormat'
+import { formatRuntime, visibleGenres } from '../utils/movieFormat'
 import styles from './MovieDetailsPage.module.css'
 
 type PageState =
@@ -208,7 +208,7 @@ function MovieDetailsContent({ movieId }: { movieId: number }) {
   const facts = [
     { label: 'Release date', value: movie.release_date && formatDate(movie.release_date) },
     { label: 'Runtime', value: movie.runtime && formatRuntime(movie.runtime) },
-    { label: 'Genres', value: movie.genres.join(', ') },
+    { label: 'Genres', value: visibleGenres(movie.genres).join(', ') },
   ].filter((fact) => fact.value)
 
   return (

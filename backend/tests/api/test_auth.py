@@ -22,7 +22,15 @@ class TestRegistration:
         response = register_user(client, "new@example.com")
         assert response.status_code == 201
         body = response.json()
-        assert set(body) == {"id", "email", "created_at", "name", "location", "bio"}
+        assert set(body) == {
+            "id",
+            "email",
+            "created_at",
+            "name",
+            "location",
+            "bio",
+            "picture_updated_at",
+        }
         assert body["email"] == "new@example.com"
         # The required name is stored (trimmed); location and bio start empty.
         assert (body["name"], body["location"], body["bio"]) == (TEST_NAME, None, None)
@@ -168,6 +176,10 @@ class TestCurrentUser:
             ("put", "/api/v1/users/me/email"),
             ("put", "/api/v1/users/me/password"),
             ("get", "/api/v1/users/me/stats"),
+            # Profile picture (Phase 7.5).
+            ("put", "/api/v1/users/me/picture"),
+            ("get", "/api/v1/users/me/picture"),
+            ("delete", "/api/v1/users/me/picture"),
             ("get", "/api/v1/ratings"),
             ("put", "/api/v1/ratings/1"),
             ("delete", "/api/v1/ratings/1"),

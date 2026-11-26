@@ -1,12 +1,16 @@
 """API tests for the account endpoints added in the intermediate backend phase:
-profile update, email change, password change and rating statistics.
+profile update, email change, password change and rating statistics, and
+the profile picture added in Phase 7.5.
 
 Authentication itself (missing/invalid/expired tokens) is covered once for
 every protected endpoint in test_auth.py and is not repeated here.
 """
 
+from io import BytesIO
+
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from tests.helpers import TEST_NAME, TEST_PASSWORD, login
 
@@ -107,6 +111,63 @@ def test_password_change_needs_the_current_password(client: TestClient, alice_he
     assert (changed.status_code, changed.content) == (204, b"")
     assert login(client, "alice@example.com").status_code == 401
     assert login(client, "alice@example.com", NEW_PASSWORD).status_code == 200
+
+
+def _png_with_gps_metadata() -> bytes:
+    """A small transparent PNG carrying EXIF metadata (a GPS entry)."""
+    image = Image.new("RGBA", (300, 200), (255, 0, 0, 0))
+    exif = Image.Exif()
+    exif[0x8825] = {2: (53.0, 20.0, 0.0)}  # GPSInfo: latitude
+    output = BytesIO()
+    image.save(output, format="PNG", exif=exif)
+    return output.getvalue()
+
+
+def test_profile_picture_is_reencoded_owner_only_and_removable(
+    client: TestClient, alice_headers, bob_headers
+):
+    url = f"{ME_URL}/picture"
+    assert client.get(url, headers=alice_headers).status_code == 404
+    assert client.get(ME_URL, headers=alice_headers).json()["picture_updated_at"] is None
+
+    uploaded = client.put(
+        url,
+        headers=alice_headers,
+        files={"picture": ("me.png", _png_with_gps_metadata(), "image/png")},
+    )
+    assert uploaded.status_code == 200
+    assert uploaded.json()["picture_updated_at"] is not None
+
+    # The stored picture is a new 512x512 JPEG without the original metadata.
+    stored = client.get(url, headers=alice_headers)
+    assert stored.status_code == 200
+    assert stored.headers["content-type"] == "image/jpeg"
+    assert stored.headers["x-content-type-options"] == "nosniff"
+    with Image.open(BytesIO(stored.content)) as image:
+        assert (image.format, image.size) == ("JPEG", (512, 512))
+        assert len(image.getexif()) == 0
+
+    # Owner-only: another user sees only their own (missing) picture.
+    assert client.get(url, headers=bob_headers).status_code == 404
+
+    # A file that is not an image (here an SVG, which may contain scripts) and
+    # a file over 2 MB are rejected; the stored picture is unchanged.
+    svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+    not_image = client.put(
+        url, headers=alice_headers, files={"picture": ("x.svg", svg, "image/svg+xml")}
+    )
+    assert not_image.status_code == 422
+    too_large = client.put(
+        url,
+        headers=alice_headers,
+        files={"picture": ("big.jpg", b"\xff" * (2 * 1024 * 1024 + 1), "image/jpeg")},
+    )
+    assert too_large.status_code == 413
+    assert client.get(url, headers=alice_headers).content == stored.content
+
+    assert client.delete(url, headers=alice_headers).status_code == 204
+    assert client.get(url, headers=alice_headers).status_code == 404
+    assert client.get(ME_URL, headers=alice_headers).json()["picture_updated_at"] is None
 
 
 def test_rating_statistics_per_genre(client: TestClient, alice_headers, bob_headers):

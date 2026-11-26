@@ -19,6 +19,7 @@ import { Link } from 'react-router'
 import type { MovieSummary } from '../../services/api/types'
 import { MoviePoster } from './MoviePoster'
 import styles from './MovieCard.module.css'
+import { visibleGenres } from '../../utils/movieFormat'
 
 export type MovieCardData = Pick<MovieSummary, 'movie_id' | 'display_title' | 'year' | 'genres' | 'poster_url'>
 
@@ -31,8 +32,8 @@ interface MovieCardProps {
 
 export function MovieCard({ movie, variant = 'standard', extra }: MovieCardProps) {
   const { display_title: title, year } = movie
-  // Show at most two genres, so the metadata line stays short.
-  const genres = movie.genres.slice(0, 2).join(', ')
+  // Show at most two genres, so the metadata line stays short (IMAX is not shown).
+  const genres = visibleGenres(movie.genres).slice(0, 2).join(', ')
   const metadata = [year, genres].filter(Boolean).join(' · ')
 
   return (

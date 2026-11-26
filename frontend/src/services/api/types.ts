@@ -95,6 +95,32 @@ export interface User {
   name: string | null
   location: string | null
   bio: string | null
+  /** When the profile picture was last uploaded; null when there is none. */
+  picture_updated_at: string | null
+}
+
+/** Body of PATCH /users/me. Only the fields sent are changed; "" removes location/bio. */
+export interface ProfileUpdate {
+  name?: string
+  location?: string
+  bio?: string
+}
+
+/** How the user rated the movies of one genre (GenreStatistics). */
+export interface GenreStatistics {
+  genre: string
+  rating_count: number
+  average_rating: number
+}
+
+/**
+ * GET /users/me/stats. Genres are ordered most rated first. A movie counts
+ * once in each of its genres, so genre counts can add up to more than rating_count.
+ */
+export interface UserStatistics {
+  rating_count: number
+  average_rating: number | null
+  genres: GenreStatistics[]
 }
 
 /** Body of POST /auth/register (RegisterRequest). The backend rejects any other field. */

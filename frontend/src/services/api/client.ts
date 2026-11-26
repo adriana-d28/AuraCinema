@@ -26,13 +26,18 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
-  /** Data to send. Plain objects are sent as JSON; URLSearchParams as a form (used by login). */
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  /**
+   * Data to send. Plain objects are sent as JSON; URLSearchParams as a form
+   * (used by login); FormData as multipart (used by the picture upload).
+   */
   body?: unknown
   /** Login token. When present it is sent as "Authorization: Bearer <token>". */
   token?: string | null
   /** Lets a page cancel a request it no longer needs (for example when the user leaves). */
   signal?: AbortSignal
+  /** Read the answer as a Blob (an image) instead of JSON. */
+  responseType?: 'json' | 'blob'
 }
 
 // Called when an authenticated request answers 401. AuthProvider registers a
@@ -51,12 +56,13 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
  *   const details = await apiRequest<MovieDetails>('/movies/6/details')
  */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, token, signal } = options
+  const { method = 'GET', body, token, signal, responseType = 'json' } = options
   const headers: Record<string, string> = { Accept: 'application/json' }
   let requestBody: BodyInit | undefined
 
-  if (body instanceof URLSearchParams) {
-    // Form data: fetch sets the right Content-Type header by itself.
+  if (body instanceof URLSearchParams || body instanceof FormData) {
+    // Form data: fetch sets the right Content-Type header (and, for a
+    // multipart upload, its boundary) by itself.
     requestBody = body
   } else if (body !== undefined) {
     headers['Content-Type'] = 'application/json'
@@ -87,6 +93,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   // 204 No Content (e.g. after a DELETE) has no body to read.
   if (response.status === 204) {
     return undefined as T
+  }
+  if (responseType === 'blob') {
+    return (await response.blob()) as T
   }
   return (await response.json()) as T
 }

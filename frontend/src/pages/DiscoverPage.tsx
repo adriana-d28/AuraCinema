@@ -29,6 +29,7 @@ import { errorMessage, isAbortError } from '../services/api/client'
 import { CATALOGUE_PAGE_SIZE, getFeaturedMovie, listGenres, listMovies } from '../services/api/movies'
 import type { Genre, MovieDetails, MovieSummary } from '../services/api/types'
 import styles from './DiscoverPage.module.css'
+import { isVisibleGenre } from '../utils/movieFormat'
 
 // Each result remembers which request (`key`) it answers. While the current
 // search has no result yet, the page shows "loading", so no extra state update
@@ -155,7 +156,8 @@ export function DiscoverPage() {
             <p className={styles.note}>Genres could not be loaded. Search still works.</p>
           ) : (
             <ul role="list" className={styles.genres}>
-              {genres.map(({ genre: name }) => (
+              {/* IMAX is listed by the API but is a format, not a genre: not offered here. */}
+              {genres.filter(({ genre: name }) => isVisibleGenre(name)).map(({ genre: name }) => (
                 <li key={name}>
                   {/* aria-pressed tells screen readers whether the filter is on. */}
                   <button

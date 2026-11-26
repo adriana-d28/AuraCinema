@@ -11,3 +11,19 @@ export function formatRuntime(minutes: number): string {
   if (hours === 0) return `${rest}m`
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`
 }
+
+// MovieLens lists "IMAX" among the genres, but it is a projection format, not
+// a genre. The API keeps it (MovieLens is the source of truth, and Discovery
+// Mode was evaluated with it), so the interface hides it, as agreed in
+// decision Q4 of the intermediate backend phase.
+const HIDDEN_GENRES = new Set(['IMAX'])
+
+/** False for values that are listed as genres but are not shown as such (IMAX). */
+export function isVisibleGenre(genre: string): boolean {
+  return !HIDDEN_GENRES.has(genre)
+}
+
+/** The genres to show for a movie, without the hidden ones. */
+export function visibleGenres(genres: string[]): string[] {
+  return genres.filter(isVisibleGenre)
+}

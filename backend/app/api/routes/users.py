@@ -5,7 +5,7 @@ is always the one identified by the access token. The profile is therefore
 private to its owner (student decision, intermediate backend phase).
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, UploadFile, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.schemas.user import (
@@ -86,6 +86,70 @@ def change_my_password(
         )
     except user_service.IncorrectPasswordError:
         raise _incorrect_password() from None
+
+
+@router.put(
+    "/me/picture",
+    response_model=UserRead,
+    summary="Upload or replace my profile picture (JPEG, PNG or WebP, at most 2 MB)",
+    responses={
+        413: {"description": "The file is larger than 2 MB"},
+        422: {"description": "The file is not a JPEG, PNG or WebP image"},
+    },
+)
+def upload_my_picture(picture: UploadFile, current_user: CurrentUser, db: DbSession) -> UserRead:
+    """Multipart form with one file field, `picture`. The server stores a new
+    512x512 JPEG made from it, never the uploaded file itself."""
+    # Read one byte more than allowed: enough to know the file is too large.
+    data = picture.file.read(user_service.PICTURE_MAX_BYTES + 1)
+    try:
+        user = user_service.set_picture(db, current_user, data)
+    except user_service.PictureTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="The picture must be 2 MB or smaller",
+        ) from None
+    except user_service.InvalidPictureError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The picture must be a JPEG, PNG or WebP image",
+        ) from None
+    return UserRead.model_validate(user)
+
+
+@router.get(
+    "/me/picture",
+    summary="Get my profile picture",
+    response_class=Response,
+    responses={
+        200: {"content": {"image/jpeg": {}}, "description": "The picture"},
+        404: {"description": "No picture uploaded"},
+    },
+)
+def read_my_picture(current_user: CurrentUser, db: DbSession) -> Response:
+    picture = user_service.get_picture(db, current_user.id)
+    if picture is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No profile picture")
+    return Response(
+        content=picture.content,
+        # The stored type, set by the server, never the type the client sent.
+        media_type=picture.content_type,
+        headers={
+            # Personal data: the browser must not keep a copy on disk.
+            "Cache-Control": "private, no-store",
+            # The browser must not guess another type from the content.
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.delete(
+    "/me/picture",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove my profile picture",
+)
+def delete_my_picture(current_user: CurrentUser, db: DbSession) -> None:
+    user_service.delete_picture(db, current_user)
 
 
 @router.get(

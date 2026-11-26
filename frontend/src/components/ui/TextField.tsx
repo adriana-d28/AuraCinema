@@ -5,7 +5,8 @@
 // - The hint is connected with aria-describedby, so it is read too.
 // - `comingSoon` marks a field the backend does not support yet (for example
 //   "Name" during registration): the field is disabled and shows the badge.
-// - `multiline` renders a <textarea> instead of an <input> (for a bio).
+// - `multiline` renders a <textarea> instead of an <input> (for a bio). It
+//   receives the same props as the input (value, onChange, maxLength...).
 // - `error` shows a validation message under the field. The input is marked
 //   aria-invalid and the message is read together with the label.
 
@@ -13,7 +14,8 @@ import { useId, type InputHTMLAttributes } from 'react'
 import { ComingSoonBadge } from './Badge'
 import styles from './TextField.module.css'
 
-interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+// Event handlers receive either element, so one onChange works for both.
+interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement | HTMLTextAreaElement> {
   label: string
   hint?: string
   error?: string
@@ -30,6 +32,7 @@ export function TextField({
   id,
   disabled,
   className,
+  type,
   ...inputProps
 }: TextFieldProps) {
   // useId creates a unique id, so two fields never share one by mistake.
@@ -55,12 +58,14 @@ export function TextField({
           className={styles.control}
           rows={3}
           disabled={isDisabled}
-          placeholder={inputProps.placeholder}
           aria-describedby={describedBy}
+          aria-invalid={error ? true : undefined}
+          {...inputProps}
         />
       ) : (
         <input
           id={fieldId}
+          type={type}
           className={styles.control}
           disabled={isDisabled}
           aria-describedby={describedBy}

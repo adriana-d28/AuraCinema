@@ -27,6 +27,12 @@ export interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   /** Forget the session on this device (the backend has no logout endpoint). */
   logout: () => void
+  /**
+   * Replace the signed-in user's account data after a change in Settings
+   * (the backend answers with the updated account), so the header and the
+   * Profile show it at once.
+   */
+  updateUser: (user: User) => void
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

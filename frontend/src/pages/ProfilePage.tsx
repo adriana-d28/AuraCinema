@@ -1,24 +1,20 @@
-// Profile: who the user is and what kind of films they like (PLACEHOLDER).
+// Profile: the signed-in user's own page (owner-only; it is never shown to
+// other users, so it is a "Personal profile", not a public one).
 //
-// The structure follows the original profile wireframe. Each element is in
-// one of three situations, written next to it in the code:
-//   [later frontend phase] the API supports it, but sign-in is needed first
-//                          (email, "member since");
-//   [needs backend]        the API has no data for it yet (picture, name,
-//                          location, bio, genre analysis, preference summary).
-//                          These are shown DISABLED with "Coming soon"; the
-//                          intermediate backend phase will add them.
-// The Settings link works: Settings is reached from here, not from the main menu.
-//
-// Recent ratings are CONNECTED (added at the end of Phase 7.3): GET /ratings
-// returns the user's ratings newest first, each with its movie summary, so
-// one request is enough. The newest RECENT_RATINGS_LIMIT are shown.
+// Data sources:
+//   - identity (picture, name, email, member since, location, bio): the
+//     account already loaded by AuthProvider (GET /users/me), kept up to date
+//     by Settings through useAuth().updateUser, so no extra request is sent;
+//   - rating metrics, genre analysis and preference summary:
+//     GET /users/me/stats (counts and averages of the user's own ratings);
+//   - recent ratings: GET /ratings (newest first, with the movie summary).
+// Everything is edited in Settings, reached from the action at the top.
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/authContext'
 import { MovieCard } from '../components/movies/MovieCard'
 import { RatingStars } from '../components/movies/RatingStars'
-import { ComingSoonBadge } from '../components/ui/Badge'
+import { ProfilePicture } from '../components/profile/ProfilePicture'
 import { Button, ButtonLink } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Panel } from '../components/ui/Panel'
@@ -26,17 +22,21 @@ import { SectionHeading } from '../components/ui/SectionHeading'
 import { Skeleton } from '../components/ui/Skeleton'
 import { errorMessage, isAbortError } from '../services/api/client'
 import { listMyRatings } from '../services/api/ratings'
-import type { Rating } from '../services/api/types'
+import type { GenreStatistics, Rating, UserStatistics } from '../services/api/types'
+import { getMyStatistics } from '../services/api/users'
+import { isVisibleGenre } from '../utils/movieFormat'
 import styles from './ProfilePage.module.css'
 
 export function ProfilePage() {
+  const { user } = useAuth()
+
   return (
     <div className="container page">
       <title>Profile · AuraCinema</title>
 
       <SectionHeading
         as="h1"
-        eyebrow="Public profile"
+        eyebrow="Personal profile"
         title="Your profile"
         description="Your film taste at a glance."
         action={
@@ -46,74 +46,225 @@ export function ProfilePage() {
         }
       />
 
-      <section className={styles.identity} aria-label="About you">
-        {/* [needs backend] Profile picture. */}
-        <div className={styles.avatarWrap}>
-          <div className={styles.avatar} aria-hidden="true">
-            <svg viewBox="0 0 48 48" focusable="false">
-              <circle cx="24" cy="18" r="8" fill="none" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M9 41c2.5-8 8.5-12 15-12s12.5 4 15 12" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
-          </div>
-          <span className={styles.avatarLabel}>
-            Profile picture <ComingSoonBadge />
-          </span>
-        </div>
+      {user && (
+        <section className={styles.identity} aria-label="About you">
+          <ProfilePicture />
 
-        <dl className={styles.details}>
-          {/* [needs backend] Name: accounts only have an email and a password today. */}
-          <div className={styles.detail}>
-            <dt>Name</dt>
-            <dd className={styles.planned}>
-              Not available yet <ComingSoonBadge />
-            </dd>
-          </div>
-          {/* [later frontend phase] Email and creation date come from GET /api/v1/users/me. */}
-          <div className={styles.detail}>
-            <dt>Email</dt>
-            <dd className={styles.pending}>Shown after sign-in</dd>
-          </div>
-          <div className={styles.detail}>
-            <dt>Member since</dt>
-            <dd className={styles.pending}>Shown after sign-in</dd>
-          </div>
-          {/* [needs backend] Location and bio. */}
-          <div className={styles.detail}>
-            <dt>Location</dt>
-            <dd className={styles.planned}>
-              Not available yet <ComingSoonBadge />
-            </dd>
-          </div>
-          <div className={`${styles.detail} ${styles.wide}`}>
-            <dt>Short bio</dt>
-            <dd className={styles.planned}>
-              Not available yet <ComingSoonBadge />
-            </dd>
-          </div>
-        </dl>
-      </section>
+          <dl className={styles.details}>
+            <Detail label="Name" value={user.name} />
+            <Detail label="Email" value={user.email} />
+            <Detail label="Member since" value={formatMemberSince(user.created_at)} />
+            <Detail label="Location" value={user.location} />
+            <Detail label="Short bio" value={user.bio} wide />
+          </dl>
+        </section>
+      )}
 
-      <div className={styles.panels}>
-        {/* [needs backend] Genre analysis and preference summary: no endpoint yet. */}
-        <Panel title="Preferred genre analysis" comingSoon>
-          <p>The genres you rate most and how highly you rate them.</p>
-          <div className={styles.bars} aria-hidden="true">
-            <span style={{ width: '82%' }} />
-            <span style={{ width: '64%' }} />
-            <span style={{ width: '45%' }} />
-            <span style={{ width: '30%' }} />
-          </div>
-        </Panel>
-        <Panel title="Preference summary" comingSoon>
-          <p>A short description of your taste, based on your ratings.</p>
-        </Panel>
-      </div>
+      <TasteOverview />
 
-      {/* Connected: GET /api/v1/ratings (newest first). */}
+      {/* Connected in Phase 7.3: GET /api/v1/ratings (newest first). */}
       <RecentRatings />
     </div>
   )
 }
+
+function Detail({ label, value, wide = false }: { label: string; value: string | null; wide?: boolean }) {
+  return (
+    <div className={wide ? `${styles.detail} ${styles.wide}` : styles.detail}>
+      <dt>{label}</dt>
+      {/* An empty optional field (or the name of an account created before
+          names existed) is shown as such; it can be filled in Settings. */}
+      {value ? <dd className={styles.value}>{value}</dd> : <dd className={styles.pending}>Not added yet</dd>}
+    </div>
+  )
+}
+
+/** "November 2026" from the account's created_at timestamp. */
+function formatMemberSince(isoDateTime: string): string {
+  return new Date(isoDateTime).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
+
+// ---------- Genre analysis and preference summary ----------
+
+/** How many genres the analysis lists (the most rated ones). */
+const GENRES_SHOWN = 6
+
+/**
+ * Fewest ratings a genre needs before it can be called the "highest rated"
+ * (decision Q7 of the intermediate backend phase): an average of one or two
+ * ratings says little about a taste.
+ */
+const MIN_RATINGS_FOR_HIGHEST = 3
+
+const formatAverage = (value: number) => value.toFixed(1)
+const ratingsLabel = (count: number) => (count === 1 ? '1 rating' : `${count} ratings`)
+
+/**
+ * The preference summary, built only from the statistics (no prediction).
+ * The genres arrive most rated first, so the first one is the most rated.
+ */
+function preferenceSummary(genres: GenreStatistics[]): string[] {
+  if (genres.length === 0) return []
+  const mostRated = genres[0]
+  const sentences = [`You rate ${mostRated.genre} films most often (${ratingsLabel(mostRated.rating_count)}).`]
+
+  const eligible = genres.filter((genre) => genre.rating_count >= MIN_RATINGS_FOR_HIGHEST)
+  if (eligible.length === 0) {
+    sentences.push(
+      `Rate at least ${MIN_RATINGS_FOR_HIGHEST} films of the same genre to see your highest-rated genre.`,
+    )
+    return sentences
+  }
+  // Highest average; a tie goes to the genre with more ratings (earlier in the list).
+  const highest = eligible.reduce((best, genre) => (genre.average_rating > best.average_rating ? genre : best))
+  const average = formatAverage(highest.average_rating)
+  sentences.push(
+    highest.genre === mostRated.genre
+      ? `It is also your highest-rated genre, with an average of ${average} out of 5.`
+      : `Your highest-rated genre is ${highest.genre}, with an average of ${average} out of 5 over ${ratingsLabel(highest.rating_count)}.`,
+  )
+  return sentences
+}
+
+type StatsState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; stats: UserStatistics }
+
+function TasteOverview() {
+  const { token } = useAuth()
+  const [state, setState] = useState<StatsState>({ status: 'loading' })
+  const [attempt, setAttempt] = useState(0) // Increased by "Try again".
+
+  useEffect(() => {
+    if (!token) return
+    const controller = new AbortController()
+    getMyStatistics(token, controller.signal)
+      .then((stats) => setState({ status: 'ready', stats }))
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) setState({ status: 'error', message: errorMessage(error) })
+      })
+    return () => controller.abort()
+  }, [token, attempt])
+
+  if (state.status === 'error') {
+    return (
+      <EmptyState
+        headingLevel="h2"
+        title="Your rating statistics could not be loaded"
+        description={state.message}
+        action={
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setState({ status: 'loading' })
+              setAttempt((value) => value + 1)
+            }}
+          >
+            Try again
+          </Button>
+        }
+      />
+    )
+  }
+
+  const stats = state.status === 'ready' ? state.stats : null
+  const hasRatings = stats !== null && stats.rating_count > 0
+  // IMAX is a format, not a genre: left out of the analysis and the summary.
+  // The other genres' figures do not change (a film counts in each genre).
+  const genres = stats === null ? [] : stats.genres.filter(({ genre }) => isVisibleGenre(genre))
+
+  return (
+    <div className={styles.panels}>
+      <Panel title="Preferred genre analysis">
+        {stats === null && <LoadingLines label="Loading your rating statistics…" />}
+        {stats !== null && !hasRatings && (
+          <p className={styles.muted}>Rate a few films to see which genres you rate most and how highly.</p>
+        )}
+        {hasRatings && <GenreBars genres={genres.slice(0, GENRES_SHOWN)} />}
+      </Panel>
+
+      <Panel title="Preference summary">
+        {stats === null && <LoadingLines />}
+        {stats !== null && !hasRatings && (
+          <>
+            <p className={styles.muted}>Your summary appears after your first ratings.</p>
+            <div>
+              <ButtonLink to="/" variant="secondary" size="sm">
+                Find a film to rate
+              </ButtonLink>
+            </div>
+          </>
+        )}
+        {hasRatings && (
+          <>
+            <dl className={styles.metrics}>
+              <div>
+                <dt>Films rated</dt>
+                <dd>{stats.rating_count}</dd>
+              </div>
+              <div>
+                <dt>Average rating</dt>
+                <dd>
+                  {formatAverage(stats.average_rating ?? 0)}
+                  <span className={styles.outOf}> / 5</span>
+                </dd>
+              </div>
+            </dl>
+            {preferenceSummary(genres).map((sentence) => (
+              <p key={sentence}>{sentence}</p>
+            ))}
+          </>
+        )}
+      </Panel>
+    </div>
+  )
+}
+
+function GenreBars({ genres }: { genres: GenreStatistics[] }) {
+  // Bar length = share of the most rated genre's count. The numbers are also
+  // written as text, so the bars are only a visual aid (aria-hidden).
+  const maxCount = genres[0]?.rating_count ?? 1
+  return (
+    <>
+      <ul role="list" className={styles.genres}>
+        {genres.map((genre) => (
+          <li key={genre.genre}>
+            <div className={styles.genreRow}>
+              <span className={styles.genreName}>{genre.genre}</span>
+              <span className={styles.genreFigures}>
+                {ratingsLabel(genre.rating_count)} · average {formatAverage(genre.average_rating)}
+              </span>
+            </div>
+            <span className={styles.bar} aria-hidden="true">
+              <span style={{ width: `${(genre.rating_count / maxCount) * 100}%` }} />
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className={styles.note}>Your most rated genres. A film counts once in each of its genres.</p>
+    </>
+  )
+}
+
+function LoadingLines({ label }: { label?: string }) {
+  return (
+    <>
+      {label && (
+        <p className="visually-hidden" role="status">
+          {label}
+        </p>
+      )}
+      <div className={styles.loadingLines} aria-hidden="true">
+        <Skeleton width="80%" />
+        <Skeleton width="60%" />
+        <Skeleton width="40%" />
+      </div>
+    </>
+  )
+}
+
+// ---------- Recent ratings (connected in Phase 7.3) ----------
 
 /** How many of the newest ratings the profile shows. */
 const RECENT_RATINGS_LIMIT = 6

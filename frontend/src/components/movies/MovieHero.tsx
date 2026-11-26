@@ -15,7 +15,7 @@
 
 import type { CSSProperties, ReactNode } from 'react'
 import type { MovieDetails } from '../../services/api/types'
-import { formatRuntime } from '../../utils/movieFormat'
+import { formatRuntime, visibleGenres } from '../../utils/movieFormat'
 import { MoviePoster } from './MoviePoster'
 import styles from './MovieHero.module.css'
 
@@ -32,7 +32,7 @@ interface MovieHeroProps {
 export function MovieHero({ movie, eyebrow, headingLevel = 'h2', showOverview = true, children }: MovieHeroProps) {
   const Heading = headingLevel
   const { display_title: title, year } = movie
-  const metadata = [year, movie.runtime ? formatRuntime(movie.runtime) : null, movie.genres.join(', ')]
+  const metadata = [year, movie.runtime ? formatRuntime(movie.runtime) : null, visibleGenres(movie.genres).join(', ')]
     .filter(Boolean)
     .join(' · ')
 

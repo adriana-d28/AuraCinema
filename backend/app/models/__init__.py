@@ -8,6 +8,7 @@ from app.models.movie import Movie
 from app.models.movie_metadata import MovieMetadata
 from app.models.rating import Rating
 from app.models.user import User
+from app.models.user_picture import UserPicture
 from app.models.watchlist import WatchlistItem
 
-__all__ = ["Movie", "MovieMetadata", "Rating", "User", "WatchlistItem"]
+__all__ = ["Movie", "MovieMetadata", "Rating", "User", "UserPicture", "WatchlistItem"]
