@@ -16,6 +16,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { MovieDetails } from '../../services/api/types'
 import { formatRuntime, visibleGenres } from '../../utils/movieFormat'
+import { CommunityRating } from './CommunityRating'
 import { MoviePoster } from './MoviePoster'
 import styles from './MovieHero.module.css'
 
@@ -62,6 +63,7 @@ export function MovieHero({ movie, eyebrow, headingLevel = 'h2', showOverview = 
             {title}
           </Heading>
           {metadata && <p className={styles.meta}>{metadata}</p>}
+          <CommunityRating average={movie.movielens_average_rating} count={movie.movielens_rating_count} variant="full" />
           {showOverview && movie.overview && <p className={styles.overview}>{movie.overview}</p>}
           {children && <div className={styles.actions}>{children}</div>}
         </div>

@@ -22,7 +22,8 @@ class MetadataStatus(StrEnum):
 
 
 class MovieRead(BaseModel):
-    """Core catalogue data, taken only from the local MovieLens catalogue."""
+    """Core catalogue data, taken only from the local MovieLens catalogue
+    (including the MovieLens average rating)."""
 
     movie_id: int = Field(description="MovieLens movieId (the AuraCinema movie identifier)")
     title: str = Field(description="Original MovieLens title, including the year")
@@ -38,6 +39,14 @@ class MovieRead(BaseModel):
     genres: list[str] = Field(description="MovieLens genres; empty if none are listed")
     tmdb_id: int | None = Field(description="The Movie Database ID, if known")
     imdb_id: int | None = Field(description="Numeric IMDb ID (e.g. 114709 = tt0114709)")
+    # MovieLens community rating (not AuraCinema users' ratings). Both are null
+    # until scripts/seed_movies.py has imported them.
+    movielens_average_rating: float | None = Field(
+        description="Mean MovieLens rating of the movie (0.5-5.0), 2 decimals"
+    )
+    movielens_rating_count: int | None = Field(
+        description="Number of MovieLens ratings behind movielens_average_rating"
+    )
 
     @classmethod
     def from_movie(cls, movie: Movie) -> "MovieRead":
@@ -50,6 +59,12 @@ class MovieRead(BaseModel):
             genres=movie.genre_list(),
             tmdb_id=movie.tmdb_id,
             imdb_id=movie.imdb_id,
+            movielens_average_rating=(
+                round(movie.movielens_average_rating, 2)
+                if movie.movielens_average_rating is not None
+                else None
+            ),
+            movielens_rating_count=movie.movielens_rating_count,
         )
 
 

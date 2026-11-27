@@ -4,6 +4,7 @@ Usage (from the backend/ folder, virtual environment active):
 
     python -m scripts.seed_movies
     python -m scripts.seed_movies --csv path\\to\\movies_catalogue.csv
+    python -m scripts.seed_movies --ratings-csv path\\to\\popularity_baseline.csv
 
 The database is the one in DATABASE_URL (.env). The movies table must exist,
 so run `alembic upgrade head` (or `alembic upgrade 413ce2f03dd0`) first.
@@ -22,12 +23,18 @@ Behaviour:
   metadata and validation result belonged to the old TMDB ID.
 - movies.search_title (the normalized title used by search) is recomputed
   for every inserted or updated movie.
+- The MovieLens average rating and rating count of every movie are read from
+  the popularity baseline output (ml/data/models/popularity_baseline.csv,
+  computed from the MovieLens training ratings) and stored in
+  movies.movielens_average_rating / movielens_rating_count. That file is
+  validated in the same way; a catalogue movie missing from it keeps NULL.
 """
 
 import argparse
 import csv
+import math
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from sqlalchemy import delete, func, select
@@ -37,13 +44,19 @@ from sqlalchemy.orm import Session
 from app.core.titles import build_search_title
 from app.models.movie import GENRES_MAX_LENGTH, TITLE_MAX_LENGTH, Movie
 from app.models.movie_metadata import MovieMetadata
+from app.models.rating import MAX_RATING, MIN_RATING
 from app.schemas.common import POSTGRES_INT_MAX
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 # Output of the ML data-preparation phase (ml/src/prepare_data.py).
 DEFAULT_CSV_PATH = BACKEND_DIR.parent / "ml" / "data" / "processed" / "movies_catalogue.csv"
 
+# Output of the popularity baseline (ml/src/popularity_baseline.py): one row
+# per catalogue movie with its MovieLens rating count and mean rating.
+DEFAULT_RATINGS_CSV_PATH = BACKEND_DIR.parent / "ml" / "data" / "models" / "popularity_baseline.csv"
+
 REQUIRED_COLUMNS = ("movieId", "title", "genres", "imdbId", "tmdbId")
+RATINGS_REQUIRED_COLUMNS = ("movieId", "rating_count", "average_rating")
 
 
 class CatalogueError(Exception):
@@ -59,6 +72,17 @@ class MovieRecord:
     genres: str
     tmdb_id: int | None
     imdb_id: int | None
+    # MovieLens community rating; None when the ratings file has no row for the movie.
+    movielens_average_rating: float | None = None
+    movielens_rating_count: int | None = None
+
+
+@dataclass(frozen=True)
+class RatingStatistics:
+    """MovieLens rating statistics of one movie (one validated ratings-file row)."""
+
+    average_rating: float
+    rating_count: int
 
 
 @dataclass(frozen=True)
@@ -131,6 +155,73 @@ def load_catalogue(csv_path: Path) -> list[MovieRecord]:
     return records
 
 
+def _parse_average_rating(value: str, row_number: int) -> float:
+    value = value.strip()
+    try:
+        number = float(value)
+    except ValueError:
+        raise CatalogueError(
+            f"Ratings file row {row_number}: average_rating {value!r} is not a number"
+        ) from None
+    if not (math.isfinite(number) and MIN_RATING <= number <= MAX_RATING):
+        raise CatalogueError(
+            f"Ratings file row {row_number}: average_rating {value!r} is outside "
+            f"{MIN_RATING}-{MAX_RATING}"
+        )
+    return number
+
+
+def load_rating_statistics(csv_path: Path) -> dict[int, RatingStatistics]:
+    """Read and validate the MovieLens rating statistics file. Raises CatalogueError."""
+    if not csv_path.is_file():
+        raise CatalogueError(f"Ratings file not found: {csv_path}")
+
+    with csv_path.open(encoding="utf-8-sig", newline="") as file:
+        reader = csv.DictReader(file)
+        missing = [c for c in RATINGS_REQUIRED_COLUMNS if c not in (reader.fieldnames or [])]
+        if missing:
+            raise CatalogueError(f"Ratings file: missing required column(s): {', '.join(missing)}")
+
+        statistics: dict[int, RatingStatistics] = {}
+        for row_number, row in enumerate(reader, start=2):
+            if None in row.values():
+                raise CatalogueError(f"Ratings file row {row_number}: too few columns")
+            movie_id = _parse_id(row["movieId"], "movieId", row_number, required=True)
+            if movie_id in statistics:
+                raise CatalogueError(f"Ratings file row {row_number}: duplicate movieId {movie_id}")
+            statistics[movie_id] = RatingStatistics(
+                average_rating=_parse_average_rating(row["average_rating"], row_number),
+                rating_count=_parse_id(
+                    row["rating_count"], "rating_count", row_number, required=True
+                ),
+            )
+
+    if not statistics:
+        raise CatalogueError("The ratings file contains no movies")
+    return statistics
+
+
+def add_rating_statistics(
+    records: list[MovieRecord], statistics: dict[int, RatingStatistics]
+) -> list[MovieRecord]:
+    """Return the records with their MovieLens rating statistics filled in.
+
+    A movie without a row in `statistics` keeps None; rows for movies that are
+    not in the catalogue are ignored.
+    """
+    result = []
+    for record in records:
+        stats = statistics.get(record.movie_id)
+        result.append(
+            replace(
+                record,
+                movielens_average_rating=stats.average_rating if stats else None,
+                movielens_rating_count=stats.rating_count if stats else None,
+            )
+        )
+    return result
+
+
 def import_movies(db: Session, records: list[MovieRecord]) -> ImportResult:
     """Insert or update the given movies in a single transaction."""
     inserted = updated = skipped = metadata_reset = 0
@@ -150,6 +241,8 @@ def import_movies(db: Session, records: list[MovieRecord]) -> ImportResult:
                         genres=record.genres,
                         tmdb_id=record.tmdb_id,
                         imdb_id=record.imdb_id,
+                        movielens_average_rating=record.movielens_average_rating,
+                        movielens_rating_count=record.movielens_rating_count,
                     )
                 )
                 inserted += 1
@@ -159,12 +252,16 @@ def import_movies(db: Session, records: list[MovieRecord]) -> ImportResult:
                 movie.tmdb_id,
                 movie.imdb_id,
                 movie.search_title,
+                movie.movielens_average_rating,
+                movie.movielens_rating_count,
             ) == (
                 record.title,
                 record.genres,
                 record.tmdb_id,
                 record.imdb_id,
                 build_search_title(record.title),
+                record.movielens_average_rating,
+                record.movielens_rating_count,
             ):
                 skipped += 1
             else:
@@ -174,6 +271,8 @@ def import_movies(db: Session, records: list[MovieRecord]) -> ImportResult:
                 movie.genres = record.genres
                 movie.tmdb_id = record.tmdb_id
                 movie.imdb_id = record.imdb_id
+                movie.movielens_average_rating = record.movielens_average_rating
+                movie.movielens_rating_count = record.movielens_rating_count
                 updated += 1
         if changed_tmdb_ids:
             # Metadata and validation results stored for the old TMDB ID would
@@ -204,14 +303,24 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_CSV_PATH,
         help=f"Path to movies_catalogue.csv (default: {DEFAULT_CSV_PATH})",
     )
+    parser.add_argument(
+        "--ratings-csv",
+        type=Path,
+        default=DEFAULT_RATINGS_CSV_PATH,
+        help="Path to the MovieLens rating statistics, popularity_baseline.csv "
+        f"(default: {DEFAULT_RATINGS_CSV_PATH})",
+    )
     args = parser.parse_args(argv)
 
     try:
         records = load_catalogue(args.csv)
+        records = add_rating_statistics(records, load_rating_statistics(args.ratings_csv))
     except CatalogueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     print(f"Validated {len(records)} movies from {args.csv}")
+    with_rating = sum(1 for record in records if record.movielens_rating_count is not None)
+    print(f"MovieLens rating statistics found for {with_rating} of them ({args.ratings_csv})")
 
     # Imported here so that validating a file does not require database settings.
     from app.db.session import get_session_factory

@@ -21,6 +21,8 @@ const HEAT: MovieSummary = {
   genres: ['Action', 'Crime', 'Thriller'],
   tmdb_id: 949,
   imdb_id: 113277,
+  movielens_average_rating: 3.94,
+  movielens_rating_count: 36213,
   poster_url: 'https://image.tmdb.org/t/p/w500/heat.jpg',
 }
 const MATRIX: MovieSummary = {
@@ -148,6 +150,8 @@ describe('Movie details', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Heat' })).toBeInTheDocument()
     expect(screen.getByText(HEAT_DETAILS.overview as string)).toBeInTheDocument()
     expect(screen.getByText('2h 50m')).toBeInTheDocument()
+    // The MovieLens community rating, kept apart from the user's own rating.
+    expect(screen.getByText('MovieLens average rating: 3.9 out of 5, from 36,213 ratings')).toBeInTheDocument()
     expect(screen.getByText('Your rating: 3.5 out of 5.')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: '3.5 stars' })).toBeChecked()
 

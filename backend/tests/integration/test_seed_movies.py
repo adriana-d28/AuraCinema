@@ -13,10 +13,13 @@ from sqlalchemy.orm import Session
 from app.models import Movie, MovieMetadata, Rating, User, WatchlistItem
 from scripts.seed_movies import (
     DEFAULT_CSV_PATH,
+    DEFAULT_RATINGS_CSV_PATH,
     CatalogueError,
     MovieRecord,
+    add_rating_statistics,
     import_movies,
     load_catalogue,
+    load_rating_statistics,
     main,
 )
 from tests.helpers import TEST_MOVIES
@@ -30,10 +33,23 @@ VALID_ROWS = (
 )
 
 
-def write_csv(tmp_path: Path, content: str) -> Path:
-    path = tmp_path / "movies_catalogue.csv"
+RATINGS_HEADER = "rank,movieId,popularity_score,rating_count,average_rating\n"
+# Movie 288513 has no row, so it keeps no MovieLens rating.
+RATINGS_ROWS = (
+    "1,318,95088,95088,4.410340947332997\n"
+    "2,1,68997,68997,3.8970172616200703\n"
+    "3,7842,1103,1103,3.2\n"
+)
+
+
+def write_csv(tmp_path: Path, content: str, name: str = "movies_catalogue.csv") -> Path:
+    path = tmp_path / name
     path.write_text(content, encoding="utf-8")
     return path
+
+
+def write_ratings_csv(tmp_path: Path, content: str = RATINGS_HEADER + RATINGS_ROWS) -> Path:
+    return write_csv(tmp_path, content, "popularity_baseline.csv")
 
 
 def empty_movies_table(db: Session) -> None:
@@ -129,6 +145,36 @@ def test_file_without_movies_is_rejected(tmp_path):
         load_catalogue(write_csv(tmp_path, HEADER))
 
 
+def test_rating_statistics_are_added_to_the_records(tmp_path):
+    records = add_rating_statistics(
+        load_catalogue(write_csv(tmp_path, HEADER + VALID_ROWS)),
+        load_rating_statistics(write_ratings_csv(tmp_path)),
+    )
+    assert {
+        r.movie_id: (r.movielens_average_rating, r.movielens_rating_count) for r in records
+    } == {
+        1: (3.8970172616200703, 68997),
+        318: (4.410340947332997, 95088),
+        7842: (3.2, 1103),
+        288513: (None, None),  # No row in the ratings file.
+    }
+
+
+@pytest.mark.parametrize(
+    ("row", "message"),
+    [
+        ("1,318,1,1,5.5", "outside 0.5-5.0"),
+        ("1,318,1,1,nan", "outside 0.5-5.0"),
+        ("1,318,1,1,abc", "not a number"),
+        ("1,318,0,0,4.0", "rating_count"),
+        ("1,318,1,1,4.0\n2,318,1,1,4.0", "duplicate movieId 318"),
+    ],
+)
+def test_invalid_rating_statistics_are_reported(tmp_path, row, message):
+    with pytest.raises(CatalogueError, match=message):
+        load_rating_statistics(write_ratings_csv(tmp_path, RATINGS_HEADER + row + "\n"))
+
+
 # --- Importing into PostgreSQL --------------------------------------------------
 
 # Tests below that use the database are marked with @pytest.mark.db.
@@ -221,11 +267,27 @@ def test_failed_import_leaves_catalogue_unchanged(db_session: Session):
 
 @pytest.mark.db
 def test_command_line_import_reports_counts(clean_db, tmp_path, capsys):
-    path = write_csv(tmp_path, HEADER + VALID_ROWS)
-    assert main(["--csv", str(path)]) == 0
+    args = ["--csv", str(write_csv(tmp_path, HEADER + VALID_ROWS))]
+    args += ["--ratings-csv", str(write_ratings_csv(tmp_path))]
+    assert main(args) == 0
     output = capsys.readouterr().out
-    assert "Inserted: 1  Updated: 0  Skipped (unchanged): 3" in output
+    assert "MovieLens rating statistics found for 3 of them" in output
+    # 1, 318 and 7842 exist without a MovieLens rating, so they are updated.
+    assert "Inserted: 1  Updated: 3  Skipped (unchanged): 0" in output
     assert f"Movies now in the database: {len(TEST_MOVIES) + 1}" in output
+
+    from app.db.session import get_session_factory
+
+    with get_session_factory()() as db:
+        movie = db.get(Movie, 318)
+        assert (movie.movielens_average_rating, movie.movielens_rating_count) == (
+            4.410340947332997,
+            95088,
+        )
+        assert db.get(Movie, 288513).movielens_rating_count is None
+
+    assert main(args) == 0  # A second run changes nothing.
+    assert "Inserted: 0  Updated: 0  Skipped (unchanged): 4" in capsys.readouterr().out
 
 
 def test_command_line_reports_invalid_file(tmp_path, capsys):
@@ -325,6 +387,9 @@ real_catalogue_required = pytest.mark.skipif(
 def test_real_catalogue_is_valid():
     records = load_catalogue(DEFAULT_CSV_PATH)
     assert len(records) == 5068
+    # Every catalogue movie has a MovieLens rating in the popularity baseline.
+    statistics = load_rating_statistics(DEFAULT_RATINGS_CSV_PATH)
+    assert set(statistics) == {r.movie_id for r in records}
     without_tmdb = [r.movie_id for r in records if r.tmdb_id is None]
     assert without_tmdb == [7842]
 

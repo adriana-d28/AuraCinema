@@ -12,6 +12,16 @@ export function formatRuntime(minutes: number): string {
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`
 }
 
+/** A MovieLens average rating with one decimal: 4.41 -> "4.4", 4 -> "4.0". */
+export function formatAverageRating(value: number): string {
+  return value.toFixed(1)
+}
+
+/** A count with thousands separators, in English: 95088 -> "95,088". */
+export function formatCount(value: number): string {
+  return value.toLocaleString('en-US')
+}
+
 // MovieLens lists "IMAX" among the genres, but it is a projection format, not
 // a genre. The API keeps it (MovieLens is the source of truth, and Discovery
 // Mode was evaluated with it), so the interface hides it, as agreed in

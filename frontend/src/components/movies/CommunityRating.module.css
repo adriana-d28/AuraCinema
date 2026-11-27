@@ -1,0 +1,39 @@
+/* MovieLens community rating: a gold star (the user's own rating uses burgundy stars). */
+.rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.short {
+  font-size: var(--text-sm);
+}
+
+.full {
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+}
+
+.star {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+.star path {
+  fill: var(--color-gold);
+}
+
+.value {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.label {
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}

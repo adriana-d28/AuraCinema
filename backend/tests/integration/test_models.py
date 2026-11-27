@@ -163,6 +163,30 @@ def test_non_positive_movie_identifiers_are_rejected(db_session: Session, field,
         db_session.commit()
 
 
+@pytest.mark.parametrize(
+    ("average", "count", "constraint"),
+    [
+        (5.5, 10, "movielens_average_rating_in_scale"),
+        (4.0, 0, "movielens_rating_count_positive"),
+        (4.0, None, "movielens_rating_statistics_together"),
+    ],
+)
+def test_invalid_movielens_rating_statistics_are_rejected(
+    db_session: Session, average, count, constraint
+):
+    db_session.add(
+        Movie(
+            movie_id=500_000,
+            title="X",
+            genres="Drama",
+            movielens_average_rating=average,
+            movielens_rating_count=count,
+        )
+    )
+    with pytest.raises(IntegrityError, match=constraint):
+        db_session.commit()
+
+
 @pytest.mark.parametrize("column", ["title", "genres"])
 def test_movie_title_and_genres_are_required(db_session: Session, column):
     values = {"movie_id": 500_000, "title": "X", "genres": "Drama", column: None}

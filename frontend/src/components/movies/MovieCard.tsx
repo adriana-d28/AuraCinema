@@ -17,11 +17,15 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { MovieSummary } from '../../services/api/types'
+import { CommunityRating } from './CommunityRating'
 import { MoviePoster } from './MoviePoster'
 import styles from './MovieCard.module.css'
 import { visibleGenres } from '../../utils/movieFormat'
 
-export type MovieCardData = Pick<MovieSummary, 'movie_id' | 'display_title' | 'year' | 'genres' | 'poster_url'>
+export type MovieCardData = Pick<
+  MovieSummary,
+  'movie_id' | 'display_title' | 'year' | 'genres' | 'poster_url' | 'movielens_average_rating' | 'movielens_rating_count'
+>
 
 interface MovieCardProps {
   movie: MovieCardData
@@ -43,6 +47,7 @@ export function MovieCard({ movie, variant = 'standard', extra }: MovieCardProps
         <div className={styles.body}>
           <h3 className={styles.title}>{title}</h3>
           {metadata && <p className={styles.meta}>{metadata}</p>}
+          <CommunityRating average={movie.movielens_average_rating} count={movie.movielens_rating_count} />
           {extra && <div className={styles.extra}>{extra}</div>}
         </div>
       </Link>

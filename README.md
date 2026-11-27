@@ -45,7 +45,7 @@ Diploma in Science in Computing at the National College of Ireland.
 | **Account** | Register with a name, email and password, log in and log out. |
 | **Discover** | See a featured movie of the day, browse the whole catalogue and filter it by genre. |
 | **Search** | Find movies by title. Search ignores capital letters, accents and punctuation, and understands MovieLens titles such as "Matrix, The" (so "the matrix" works). |
-| **Movie details** | See the poster, plot overview, release date, runtime and genres of a movie. |
+| **Movie details** | See the poster, plot overview, release date, runtime and genres of a movie, and its MovieLens average rating (also shown on every movie card). |
 | **Ratings** | Rate movies from 0.5 to 5 stars (half stars allowed), change or remove a rating. |
 | **Watchlist** | Save movies to watch later and remove them again. |
 | **Recommendations** | Get a personalised list of up to 20 movies, based on your ratings. |
@@ -100,7 +100,7 @@ Browser
   when it starts. Recommendations are computed in milliseconds, inside the
   API process.
 - **Movie information** comes from two places. MovieLens gives the catalogue
-  (titles, genres, identifiers). TMDB (The Movie Database) gives the posters,
+  (titles, genres, identifiers, average ratings). TMDB (The Movie Database) gives the posters,
   plot overviews, release dates and runtimes. TMDB data is downloaded by
   maintenance scripts and **stored in PostgreSQL**, so the website keeps
   working even if TMDB is slow or unavailable.
@@ -421,7 +421,7 @@ A new database needs three steps. Only the first one is required.
 
 | Step | Command (from `backend/`) | What it does |
 |---|---|---|
-| 1. Catalogue | `python -m scripts.seed_movies` | Imports the 5,068 movies (titles, genres, MovieLens/IMDb/TMDB identifiers) from `ml/data/processed/movies_catalogue.csv`. Safe to repeat: unchanged movies are skipped and user data is never touched. |
+| 1. Catalogue | `python -m scripts.seed_movies` | Imports the 5,068 movies (titles, genres, MovieLens/IMDb/TMDB identifiers) from `ml/data/processed/movies_catalogue.csv`, with each movie's MovieLens average rating and rating count from `ml/data/models/popularity_baseline.csv`. Safe to repeat: unchanged movies are skipped and user data is never touched. |
 | 2. Metadata | `python -m scripts.refresh_movie_metadata` | Downloads the poster, overview, release date and runtime of each movie from TMDB and stores them. |
 | 3. Validation | `python -m scripts.validate_tmdb_ids` | Checks that each TMDB identifier points to the right movie (same title and year). The "featured movie" on Discover only uses validated movies. |
 

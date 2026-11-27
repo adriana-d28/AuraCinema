@@ -23,7 +23,17 @@ pytestmark = pytest.mark.db
 
 MOVIES_URL = "/api/v1/movies"
 
-MOVIE_FIELDS = {"movie_id", "title", "display_title", "year", "genres", "tmdb_id", "imdb_id"}
+MOVIE_FIELDS = {
+    "movie_id",
+    "title",
+    "display_title",
+    "year",
+    "genres",
+    "tmdb_id",
+    "imdb_id",
+    "movielens_average_rating",
+    "movielens_rating_count",
+}
 # List items (catalogue pages) also carry the stored poster.
 SUMMARY_FIELDS = MOVIE_FIELDS | {"poster_url"}
 METADATA_FIELDS = {
@@ -112,6 +122,8 @@ def test_movie_fields_and_genre_list(client: TestClient):
             "genres": ["Adventure", "Animation", "Children", "Comedy", "Fantasy"],
             "tmdb_id": 862,
             "imdb_id": 114709,
+            "movielens_average_rating": None,
+            "movielens_rating_count": None,
             "poster_url": None,  # No metadata stored in this test.
         }
     ]
@@ -264,7 +276,18 @@ def test_get_movie_by_movielens_id(client: TestClient):
         "genres": ["Action", "Sci-Fi", "Thriller"],
         "tmdb_id": 603,
         "imdb_id": 133093,
+        "movielens_average_rating": None,
+        "movielens_rating_count": None,
     }
+
+
+def test_movielens_rating_is_returned_rounded(client: TestClient, db_session):
+    movie = db_session.get(Movie, 318)
+    movie.movielens_average_rating, movie.movielens_rating_count = 4.410340947332997, 95088
+    db_session.commit()
+    for url in (f"{MOVIES_URL}/318", f"{MOVIES_URL}/318/details"):
+        body = client.get(url).json()
+        assert (body["movielens_average_rating"], body["movielens_rating_count"]) == (4.41, 95088)
 
 
 def test_get_movie_without_tmdb_id(client: TestClient):
@@ -301,6 +324,8 @@ def test_details_combine_local_data_with_stored_metadata(client: TestClient, db_
         "genres": ["Adventure", "Animation", "Children", "Comedy", "Fantasy"],
         "tmdb_id": 862,
         "imdb_id": 114709,
+        "movielens_average_rating": None,
+        "movielens_rating_count": None,
         "overview": "Led by Woody, Andy's toys live happily in his room...",
         "release_date": "1995-10-30",
         "runtime": 81,

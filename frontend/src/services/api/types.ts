@@ -27,6 +27,10 @@ export interface Movie {
   genres: string[]
   tmdb_id: number | null
   imdb_id: number | null
+  /** Mean MovieLens rating (0.5-5.0, 2 decimals); not AuraCinema users' ratings. Null until imported. */
+  movielens_average_rating: number | null
+  /** Number of MovieLens ratings behind movielens_average_rating. Null until imported. */
+  movielens_rating_count: number | null
 }
 
 /** A movie as shown in lists (MovieSummaryRead): catalogue pages, watchlist, ratings. */
