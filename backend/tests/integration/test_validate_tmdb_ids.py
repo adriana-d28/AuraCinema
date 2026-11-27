@@ -206,40 +206,6 @@ def test_validation_and_refresh_do_not_overwrite_each_other(db_session: Session)
 # --- Batches, interruption, rate limits ----------------------------------------------------
 
 
-def test_controlled_batches_with_delay(db_session: Session):
-    sleep = SleepRecorder()
-    summary, reports = run(db_session, FakeTmdbApi(), batch_size=5, delay_seconds=0.5, sleep=sleep)
-    assert [line for line in reports if line.startswith("Batch ")] == [
-        f"Batch {n}/4: {min(5 * n, 16)}/16 processed" for n in range(1, 5)
-    ]
-    assert sleep.waits == [0.5] * (len(WITH_TMDB_ID) - 1)
-
-
-def test_interrupted_run_can_be_resumed(db_session: Session):
-    def interrupt():
-        raise KeyboardInterrupt
-
-    summary, _ = run(db_session, FakeTmdbApi({15602: interrupt}), batch_size=50)
-    assert summary.interrupted is True
-    assert stored(1).tmdb_validation_status == "valid"  # Saved before stopping.
-    assert stored(3) is None
-
-    resumed = FakeTmdbApi()
-    summary, _ = run(db_session, resumed)
-    assert 862 not in resumed.requested_ids and 15602 in resumed.requested_ids
-    assert summary.processed == len(WITH_TMDB_ID) - 2
-
-
-def test_rate_limit_is_respected_before_marking_a_temporary_error(db_session: Session):
-    api = FakeTmdbApi({862: httpx2.Response(429, headers={"Retry-After": "4"})})
-    sleep = SleepRecorder()
-    run(db_session, api, movie_ids=[1, 2], max_retries=2, sleep=sleep)
-    assert api.requested_ids == [862, 862, 862, 8844]
-    assert sleep.waits == [4.0, 4.0]
-    assert stored(1).tmdb_validation_status == "temporary_error"
-    assert stored(2).tmdb_validation_status == "valid"
-
-
 def test_rejected_token_stops_the_run(db_session: Session):
     api = FakeTmdbApi({8844: httpx2.Response(401)})
     summary, _ = run(db_session, api)

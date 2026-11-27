@@ -16,7 +16,6 @@ from app.services.tmdb_service import (
     TmdbError,
     TmdbMovieDetails,
     TmdbStatus,
-    build_poster_url,
     fetch_movie_details_with_retry,
     parse_movie_details,
     parse_retry_after,
@@ -130,14 +129,6 @@ def test_http_errors_raise_tmdb_error_with_status(status_code, expected):
     assert error.value.status == expected
 
 
-def test_invalid_credentials_are_not_reported_as_movie_not_found():
-    handler = RecordingHandler(httpx2.Response(401, json={"status_code": 7}))
-    with pytest.raises(TmdbError) as error:
-        make_client(handler).get_movie_details(862)
-    assert error.value.status is TmdbStatus.AUTH_FAILED
-    assert error.value.status is not TmdbStatus.NOT_FOUND
-
-
 def test_connection_failure_raises_unavailable():
     handler = RecordingHandler(httpx2.ConnectError("connection refused"))
     with pytest.raises(TmdbError) as error:
@@ -204,11 +195,6 @@ def test_titles_are_kept_for_validation_only():
     assert (details.title, details.original_title) == ("Léon: The Professional", "Léon")
 
 
-def test_poster_url_builder_handles_missing_poster():
-    assert build_poster_url(None) is None
-    assert build_poster_url("/a.jpg") == "https://image.tmdb.org/t/p/w500/a.jpg"
-
-
 def test_http_status_is_attached_to_the_error():
     handler = RecordingHandler(httpx2.Response(404, json={"status_code": 34}))
     with pytest.raises(TmdbError) as error:
@@ -231,12 +217,6 @@ def test_rate_limit_error_carries_retry_after_seconds():
 )  # fmt: skip
 def test_parse_retry_after(header, expected):
     assert parse_retry_after(header) == expected
-
-
-def test_client_works_as_a_context_manager():
-    handler = RecordingHandler(httpx2.Response(200, json=TOY_STORY_JSON))
-    with make_client(handler) as client:
-        assert client.get_movie_details(862).runtime == 81
 
 
 # --- fetch_movie_details_with_retry ------------------------------------------

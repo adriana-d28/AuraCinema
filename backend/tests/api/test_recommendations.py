@@ -6,8 +6,9 @@ them. This checks the HTTP contract (authentication, user isolation, query
 validation, response format, error status) independently of the real models.
 
 Already covered elsewhere and not repeated: missing token (test_auth.py, which
-now includes this endpoint), invalid/expired tokens and deleted accounts (the
-same get_current_user dependency, test_auth.py), duplicate/unknown IDs and
+now includes this endpoint), invalid tokens and deleted accounts (the same
+get_current_user dependency, test_auth.py; expired tokens in
+unit/test_security.py), duplicate/unknown IDs and
 posters (test_recommendation_support.py), the cold-start boundary cases
 (test_recommendation_service.py).
 """

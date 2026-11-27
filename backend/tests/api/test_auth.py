@@ -1,13 +1,10 @@
 """API tests for registration, login and the authenticated-user endpoint."""
 
-from datetime import timedelta
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token
 from app.models import User
 from tests.helpers import TEST_NAME, TEST_PASSWORD, auth_headers, login, register_user
 
@@ -60,14 +57,14 @@ class TestRegistration:
 
     @pytest.mark.parametrize(
         "payload",
+        # Each payload has exactly one problem (the others carry a valid name), so
+        # each case is rejected for the reason it describes. Email format and
+        # password length rules are covered by tests/unit/test_schemas.py.
         [
-            {"email": "not-an-email", "password": TEST_PASSWORD},
-            {"email": "a@example.com", "password": "x" * 14},
-            {"email": "a@example.com", "password": "x" * 129},
-            {"email": "a@example.com"},
-            {"password": TEST_PASSWORD},
+            {"email": "a@example.com", "name": TEST_NAME},
+            {"password": TEST_PASSWORD, "name": TEST_NAME},
             {},
-            {"email": 123, "password": TEST_PASSWORD},
+            {"email": 123, "password": TEST_PASSWORD, "name": TEST_NAME},
             {"email": "a@example.com", "password": TEST_PASSWORD, "name": "A", "id": 1},
             # The name is required (intermediate backend phase), and blank is not a name.
             {"email": "a@example.com", "password": TEST_PASSWORD},
@@ -153,13 +150,6 @@ class TestCurrentUser:
     def test_invalid_authorization_headers_are_rejected(self, client: TestClient, header):
         response = client.get(ME_URL, headers={"Authorization": header})
         assert response.status_code == 401
-
-    def test_expired_token_is_rejected(self, client: TestClient):
-        register_user(client, "exp@example.com")
-        token = create_access_token(1, expires_delta=timedelta(seconds=-10))
-        response = client.get(ME_URL, headers={"Authorization": f"Bearer {token}"})
-        assert response.status_code == 401
-        assert response.json() == {"detail": "Could not validate credentials"}
 
     def test_token_for_deleted_user_is_rejected(self, client: TestClient, db_session: Session):
         headers = auth_headers(client, "gone@example.com")

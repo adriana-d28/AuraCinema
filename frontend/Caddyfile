@@ -1,0 +1,28 @@
+# Caddy configuration for the AuraCinema website (container "web").
+#
+# SITE_ADDRESS decides how the site is served:
+#   :80                       plain HTTP on any address (local testing, the default)
+#   auracinema.duckdns.org    a public domain: Caddy obtains and renews a free
+#                             HTTPS certificate (Let's Encrypt) automatically and
+#                             redirects HTTP to HTTPS
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# The largest request is a profile picture (2 MB limit in the API).
+	request_body {
+		max_size 3MB
+	}
+
+	# API requests go to the FastAPI container on the internal Docker network.
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Everything else is the React app. Addresses such as /watchlist exist only
+	# in the browser router, so unknown paths return index.html instead of 404.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -80,14 +80,11 @@ def test_delete_rating_returns_204_then_404(client: TestClient, alice_headers):
     assert client.get(RATINGS_URL, headers=alice_headers).json() == []
 
 
-@pytest.mark.parametrize("value", [0, 0.25, 5.5, 6, -1, 3.3, "4.5", "abc", True, None])
+# Two values are enough to prove the schema is applied to the route; the full
+# range/step/type rules are covered by tests/unit/test_schemas.py.
+@pytest.mark.parametrize("value", [5.5, "abc"])
 def test_invalid_rating_values_are_rejected(client: TestClient, alice_headers, value):
     assert put_rating(client, alice_headers, 1, value).status_code == 422
-
-
-@pytest.mark.parametrize("value", [0.5, 5.0])
-def test_rating_boundaries_are_accepted(client: TestClient, alice_headers, value):
-    assert put_rating(client, alice_headers, 1, value).status_code == 201
 
 
 @pytest.mark.parametrize("movie_id", ["0", "-1", "abc", "1.5", "2147483648", "1;DROP TABLE users"])

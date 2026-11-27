@@ -4,7 +4,12 @@
 # ML: raw MovieLens 32M dataset and generated processed data (large, never committed).
 # ml/data/models/ and ml/data/evaluation/ (trained models and results) are tracked.
 ml/data/ml-32m/
-ml/data/processed/
+# Processed data is ignored, except the small movie catalogue (about 300 KB,
+# a MovieLens transformation redistributed under the MovieLens licence, see
+# ml/data/processed/README.md) that the API image needs to seed the database.
+ml/data/processed/*
+!ml/data/processed/movies_catalogue.csv
+!ml/data/processed/README.md
 
 # Internal project documentation folders at the repository.
 /docs/

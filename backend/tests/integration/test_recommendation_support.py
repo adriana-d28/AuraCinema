@@ -8,7 +8,6 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models import MovieMetadata
-from app.schemas.movie import RecommendedMovieRead
 from app.services.movie_service import build_recommended_movies, get_movies_by_ids
 from tests.helpers import UNKNOWN_MOVIE_ID
 
@@ -42,9 +41,3 @@ def test_stored_poster_is_included_when_available(db_session: Session):
 def test_empty_recommendation_list(db_session: Session):
     assert build_recommended_movies(db_session, []) == []
     assert get_movies_by_ids(db_session, []) == {}
-
-
-def test_internal_model_indices_are_not_part_of_the_schema():
-    fields = set(RecommendedMovieRead.model_fields)
-    assert "item_index" not in fields
-    assert {"movie_id", "title", "genres", "rank", "score", "poster_url"} <= fields

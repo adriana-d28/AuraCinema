@@ -2,8 +2,8 @@
 profile update, email change, password change and rating statistics, and
 the profile picture added in Phase 7.5.
 
-Authentication itself (missing/invalid/expired tokens) is covered once for
-every protected endpoint in test_auth.py and is not repeated here.
+Authentication itself (missing/invalid tokens) is covered once for every
+protected endpoint in test_auth.py and is not repeated here.
 """
 
 from io import BytesIO

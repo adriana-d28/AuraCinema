@@ -9,8 +9,12 @@
 !backend/alembic.ini
 !backend/alembic
 !backend/app
+!backend/scripts
 !ml/src
 !ml/data/models
+# The movie catalogue (about 300 KB) used by scripts/seed_movies.py, so a fresh
+# server can load the catalogue. The other processed files stay excluded.
+!ml/data/processed/movies_catalogue.csv
 
 # Never send caches, even inside the allowed folders.
 **/__pycache__

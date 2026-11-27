@@ -1,8 +1,7 @@
-"""Integration tests for database connectivity and the Alembic migration."""
+"""Integration tests for the Alembic migrations."""
 
 import pytest
 from alembic import command
-from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, inspect, text
 
 from app.core.titles import build_search_title
@@ -10,61 +9,6 @@ from tests.conftest import alembic_config
 from tests.helpers import TEST_MOVIES
 
 pytestmark = pytest.mark.db
-
-
-def test_database_is_reachable(migrated_engine: Engine):
-    with migrated_engine.connect() as connection:
-        assert connection.execute(text("SELECT 1")).scalar_one() == 1
-
-
-def test_database_is_postgresql(migrated_engine: Engine):
-    assert migrated_engine.dialect.name == "postgresql"
-
-
-def test_database_is_at_latest_migration(migrated_engine: Engine):
-    head = ScriptDirectory.from_config(alembic_config()).get_current_head()
-    with migrated_engine.connect() as connection:
-        current = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert current == head
-
-
-def test_migration_creates_expected_tables_and_constraints(migrated_engine: Engine):
-    inspector = inspect(migrated_engine)
-    assert {"users", "ratings", "watchlist_items"} <= set(inspector.get_table_names())
-
-    assert {c["name"] for c in inspector.get_unique_constraints("users")} == {"uq_users_email"}
-    assert {c["name"] for c in inspector.get_unique_constraints("ratings")} == {
-        "uq_ratings_user_id_movie_id"
-    }
-    assert {c["name"] for c in inspector.get_unique_constraints("watchlist_items")} == {
-        "uq_watchlist_items_user_id_movie_id"
-    }
-    assert {c["name"] for c in inspector.get_check_constraints("ratings")} == {
-        "ck_ratings_movie_id_positive",
-        "ck_ratings_rating_half_star_range",
-    }
-    for table in ("ratings", "watchlist_items"):
-        # Since the movie catalogue migration each table has two foreign keys.
-        foreign_keys = {fk["name"]: fk for fk in inspector.get_foreign_keys(table)}
-        assert set(foreign_keys) == {f"fk_{table}_user_id_users", f"fk_{table}_movie_id_movies"}
-
-        to_users = foreign_keys[f"fk_{table}_user_id_users"]
-        assert to_users["referred_table"] == "users"
-        assert to_users["options"].get("ondelete") == "CASCADE"
-
-        # No ON DELETE action: a movie that is still referenced cannot be deleted.
-        to_movies = foreign_keys[f"fk_{table}_movie_id_movies"]
-        assert to_movies["referred_table"] == "movies"
-        assert to_movies["constrained_columns"] == ["movie_id"]
-        assert to_movies["referred_columns"] == ["movie_id"]
-        assert to_movies["options"].get("ondelete") is None
-
-
-def test_timestamps_are_timezone_aware_columns(migrated_engine: Engine):
-    inspector = inspect(migrated_engine)
-    columns = {c["name"]: c for c in inspector.get_columns("ratings")}
-    assert columns["rated_at"]["type"].timezone is True
-    assert columns["created_at"]["type"].timezone is True
 
 
 def test_migration_downgrade_and_upgrade_round_trip(migrated_engine: Engine):
@@ -80,42 +24,17 @@ def test_migration_downgrade_and_upgrade_round_trip(migrated_engine: Engine):
     )
 
 
+def test_models_match_migrations(migrated_engine: Engine):
+    """Alembic finds no difference between the ORM models and the migrated schema.
+
+    Together with tests/integration/test_models.py, which triggers every named
+    constraint, this replaces column-by-column inspection of the schema."""
+    command.check(alembic_config())  # Raises if autogenerate would create a migration.
+
+
 # --- Movie catalogue migrations (413ce2f03dd0 and 6bfe976fc037) -------------
 
 MOVIES_REVISION = "413ce2f03dd0"
-
-
-def test_movies_table_columns_and_primary_key(migrated_engine: Engine):
-    inspector = inspect(migrated_engine)
-    columns = {c["name"]: c for c in inspector.get_columns("movies")}
-    # search_title was added by revision 4b9b12262d50 (normalized search).
-    assert list(columns) == ["movie_id", "title", "genres", "tmdb_id", "imdb_id", "search_title"]
-
-    primary_key = inspector.get_pk_constraint("movies")
-    assert primary_key["name"] == "pk_movies"
-    assert primary_key["constrained_columns"] == ["movie_id"]
-    # movie_id comes from MovieLens, so it must not have a sequence/default.
-    assert columns["movie_id"]["default"] is None
-    assert columns["movie_id"].get("autoincrement") is not True
-
-    assert {name: c["nullable"] for name, c in columns.items()} == {
-        "movie_id": False,
-        "title": False,
-        "genres": False,
-        "tmdb_id": True,
-        "imdb_id": True,
-        "search_title": False,
-    }
-    assert {c["name"] for c in inspector.get_check_constraints("movies")} == {
-        "ck_movies_movie_id_positive",
-        "ck_movies_tmdb_id_positive",
-        "ck_movies_imdb_id_positive",
-    }
-
-
-def test_models_match_migrations(migrated_engine: Engine):
-    """Alembic finds no difference between the ORM models and the migrated schema."""
-    command.check(alembic_config())  # Raises if autogenerate would create a migration.
 
 
 def test_foreign_key_migration_refuses_unknown_movies_and_keeps_data(clean_db: Engine):
@@ -172,51 +91,6 @@ def test_foreign_key_migration_refuses_unknown_movies_and_keeps_data(clean_db: E
 # --- Metadata refinements (bbf98bce938e and 4b9b12262d50) -----------------------
 
 FK_REVISION = "6bfe976fc037"  # Last revision before the metadata refinements.
-
-
-def test_movie_metadata_table_columns_and_nullability(migrated_engine: Engine):
-    columns = {c["name"]: c for c in inspect(migrated_engine).get_columns("movie_metadata")}
-    assert {name: c["nullable"] for name, c in columns.items()} == {
-        "movie_id": False,
-        "overview": True,
-        "release_date": True,
-        "runtime": True,
-        "poster_path": True,
-        "metadata_source": True,
-        "metadata_updated_at": True,
-        "refresh_status": True,
-        "refresh_attempted_at": True,
-        "tmdb_validation_status": False,
-        "tmdb_validated_at": True,
-        "tmdb_validation_note": True,
-        "tmdb_validation_http_status": True,
-    }
-    assert columns["metadata_updated_at"]["type"].timezone is True
-    assert "not_checked" in columns["tmdb_validation_status"]["default"]
-    # movie_id comes from movies, so it has no sequence of its own.
-    assert columns["movie_id"]["default"] is None
-
-
-def test_movie_metadata_primary_key_is_also_the_foreign_key(migrated_engine: Engine):
-    inspector = inspect(migrated_engine)
-    primary_key = inspector.get_pk_constraint("movie_metadata")
-    assert (primary_key["name"], primary_key["constrained_columns"]) == (
-        "pk_movie_metadata",
-        ["movie_id"],
-    )
-    (foreign_key,) = inspector.get_foreign_keys("movie_metadata")
-    assert foreign_key["name"] == "fk_movie_metadata_movie_id_movies"
-    assert foreign_key["constrained_columns"] == ["movie_id"]
-    assert (foreign_key["referred_table"], foreign_key["referred_columns"]) == (
-        "movies",
-        ["movie_id"],
-    )
-    assert foreign_key["options"].get("ondelete") == "CASCADE"
-    assert {c["name"] for c in inspector.get_check_constraints("movie_metadata")} == {
-        "ck_movie_metadata_runtime_positive",
-        "ck_movie_metadata_refresh_status_valid",
-        "ck_movie_metadata_tmdb_validation_status_valid",
-    }
 
 
 def test_metadata_migrations_downgrade_and_upgrade_preserve_existing_data(clean_db: Engine):

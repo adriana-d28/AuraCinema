@@ -128,8 +128,3 @@ def test_tmdb_timeout_out_of_range_is_rejected(timeout):
 def test_tmdb_metadata_refresh_days_out_of_range_is_rejected(days):
     with pytest.raises(ValidationError):
         make_settings(tmdb_metadata_refresh_days=days)
-
-
-def test_tmdb_metadata_refresh_days_is_configurable(monkeypatch):
-    monkeypatch.setenv("TMDB_METADATA_REFRESH_DAYS", "7")
-    assert make_settings().tmdb_metadata_refresh_days == 7

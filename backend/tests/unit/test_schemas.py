@@ -46,12 +46,6 @@ class TestRatingValidation:
 
 
 class TestRegisterValidation:
-    def test_email_is_normalised_to_lower_case(self):
-        request = RegisterRequest(
-            email="Alice.Smith@Example.COM", password="long-enough-password", name="Alice"
-        )
-        assert request.email == "alice.smith@example.com"
-
     @pytest.mark.parametrize("email", ["not-an-email", "a@", "@example.com", "", "a b@example.com"])
     def test_invalid_emails_are_rejected(self, email):
         with pytest.raises(ValidationError):

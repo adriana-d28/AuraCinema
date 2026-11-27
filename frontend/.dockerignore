@@ -1,0 +1,10 @@
+# Build context of frontend/Dockerfile. Dependencies are installed and the app
+# is built inside the image, so local copies are never sent. Local .env files
+# are excluded so development settings never reach the production build.
+node_modules
+dist
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore

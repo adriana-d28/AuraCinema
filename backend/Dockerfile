@@ -19,6 +19,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/alembic.ini .
 COPY backend/alembic ./alembic
 COPY backend/app ./app
+# Maintenance scripts (catalogue seed, TMDB metadata), run on demand with
+#   docker compose run --rm api python -m scripts.seed_movies
+COPY backend/scripts ./scripts
 
 # Runtime part of the ML component only: its Python package and the small
 # versioned model files (CF neighbour matrix, item-index mapping, popularity
@@ -26,6 +29,9 @@ COPY backend/app ./app
 # training/test datasets are never copied: recommendations do not need them.
 COPY ml/src /auracinema/ml/src
 COPY ml/data/models /auracinema/ml/data/models
+# The movie catalogue read by scripts/seed_movies.py (about 300 KB). The
+# training/test ratings in the same folder are still excluded.
+COPY ml/data/processed/movies_catalogue.csv /auracinema/ml/data/processed/movies_catalogue.csv
 
 # Run as an unprivileged user rather than root.
 RUN useradd --create-home appuser

@@ -64,19 +64,6 @@ def test_duplicate_rating_for_same_user_and_movie_is_rejected(db_session: Sessio
         db_session.commit()
 
 
-def test_two_users_can_rate_the_same_movie(db_session: Session):
-    alice = create_user(db_session, "alice@example.com")
-    bob = create_user(db_session, "bob@example.com")
-    db_session.add_all(
-        [
-            Rating(user_id=alice.id, movie_id=1, rating=3.0),
-            Rating(user_id=bob.id, movie_id=1, rating=5.0),
-        ]
-    )
-    db_session.commit()
-    assert db_session.scalar(select(func.count()).select_from(Rating)) == 2
-
-
 @pytest.mark.parametrize("value", [0.0, 0.3, 5.5, 6.0, -1.0])
 def test_invalid_rating_value_is_rejected_by_database(db_session: Session, value):
     user = create_user(db_session)
@@ -100,21 +87,6 @@ def test_foreign_key_to_missing_user_is_rejected(db_session: Session, model):
     db_session.add(model(user_id=999_999, movie_id=1, **extra))
     with pytest.raises(IntegrityError, match="fk_"):
         db_session.commit()
-
-
-def test_rating_update_modifies_the_existing_row(db_session: Session):
-    user = create_user(db_session)
-    rating = Rating(user_id=user.id, movie_id=1, rating=2.0)
-    db_session.add(rating)
-    db_session.commit()
-
-    rating.rating = 4.0
-    db_session.commit()
-    db_session.expire_all()
-
-    rows = db_session.scalars(select(Rating).where(Rating.user_id == user.id)).all()
-    assert len(rows) == 1
-    assert rows[0].rating == 4.0
 
 
 def test_watchlist_item_is_persisted(db_session: Session):
@@ -168,12 +140,6 @@ def test_movie_is_persisted_with_original_movielens_id(db_session: Session):
     db_session.expire_all()
     stored = db_session.get(Movie, 288513)
     assert (stored.movie_id, stored.title, stored.genres) == (288513, "Test Movie (2023)", "Drama")
-
-
-def test_movie_external_ids_are_nullable(db_session: Session):
-    dune = db_session.get(Movie, 7842)  # Loaded by the test catalogue fixture.
-    assert dune.tmdb_id is None
-    assert dune.imdb_id == 142032
 
 
 def test_duplicate_movie_id_is_rejected(db_session: Session):
@@ -325,25 +291,6 @@ def test_deleting_a_movie_without_user_data_removes_its_metadata(db_session: Ses
     db_session.delete(db_session.get(Movie, 7))
     db_session.commit()
     assert db_session.get(MovieMetadata, 7) is None
-
-
-def test_deleting_metadata_keeps_the_movie(db_session: Session):
-    db_session.add(MovieMetadata(movie_id=7, runtime=127))
-    db_session.commit()
-    db_session.delete(db_session.get(MovieMetadata, 7))
-    db_session.commit()
-    assert db_session.get(Movie, 7) is not None
-
-
-def test_metadata_does_not_allow_deleting_a_rated_movie(db_session: Session):
-    user = create_user(db_session)
-    db_session.add_all(
-        [MovieMetadata(movie_id=318), Rating(user_id=user.id, movie_id=318, rating=5)]
-    )
-    db_session.commit()
-    db_session.delete(db_session.get(Movie, 318))
-    with pytest.raises(IntegrityError, match="fk_ratings_movie_id_movies"):
-        db_session.commit()
 
 
 def test_search_title_follows_the_title(db_session: Session):

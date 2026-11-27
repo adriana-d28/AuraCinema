@@ -1,6 +1,9 @@
-# Local development stack: PostgreSQL and (optionally) the API container.
-#   Start only the database:  docker compose up -d db
-#   Start database + API:     docker compose up -d --build
+# AuraCinema stack: PostgreSQL, the API and (optionally) the website.
+#   Start only the database:     docker compose up -d db
+#   Start database + API:        docker compose up -d --build
+#   Full stack (with website):   docker compose --profile web up -d --build
+#                                then open http://localhost
+# On a server, COMPOSE_PROFILES=web in .env makes the website start by default.
 # Values are read from the .env file in this folder.
 
 # Explicit project name, so containers and volumes are named "auracinema-*"
@@ -10,6 +13,8 @@ name: auracinema
 services:
   db:
     image: postgres:17
+    # Start again after a crash or a reboot of the machine (unless stopped by hand).
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
@@ -33,12 +38,15 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
+    restart: unless-stopped
     env_file: .env
     environment:
       # Inside the Compose network the database host is the service name "db",
       # not localhost.
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     ports:
+      # Bound to localhost only: from outside the machine the API is reached
+      # through the "web" container (/api), never directly.
       - "127.0.0.1:8000:8000"
     depends_on:
       db:
@@ -46,5 +54,31 @@ services:
     # Apply pending migrations, then start the server.
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
+  web:
+    # Only started with the "web" profile, so the usual development commands
+    # (and the Vite dev server on port 5173) are unchanged.
+    profiles: ["web"]
+    # The built React app served by Caddy, which also forwards /api to "api"
+    # and, with a domain in SITE_ADDRESS, provides HTTPS automatically.
+    build:
+      context: ../frontend
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      # The only public entry point: HTTP, HTTPS and HTTP/3 (UDP).
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      # HTTPS certificates must survive restarts: Let's Encrypt limits how
+      # often a new certificate can be requested for the same domain.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:

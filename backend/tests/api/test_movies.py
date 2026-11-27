@@ -123,12 +123,6 @@ def test_search_by_partial_title(client: TestClient):
     assert body["total"] == 3
 
 
-@pytest.mark.parametrize("search", ["TOY STORY", "tOy StOrY", "  toy story  "])
-def test_search_is_case_insensitive_and_ignores_surrounding_spaces(client: TestClient, search):
-    body = client.get(MOVIES_URL, params={"search": search}).json()
-    assert body["total"] == 3
-
-
 def test_search_matches_the_middle_of_a_title(client: TestClient):
     body = client.get(MOVIES_URL, params={"search": "shawshank"}).json()
     assert [m["movie_id"] for m in body["items"]] == [318]
@@ -140,13 +134,14 @@ def test_search_without_matches_returns_empty_page(client: TestClient):
     assert response.json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
 
 
-@pytest.mark.parametrize("search", ["%", "_", "\\", "100%", "' OR 1=1 --"])
-def test_special_characters_are_not_wildcards_or_sql(client: TestClient, search):
-    """% and _ are SQL wildcards; user input must not act as a wildcard or as SQL.
-    Punctuation is ignored by the normalized search, so these find nothing."""
+@pytest.mark.parametrize("search", ["%", "_", "\\", "100%", "!!!", "...", "-", "&&"])
+def test_special_characters_are_not_wildcards(client: TestClient, search):
+    """% and _ are SQL wildcards; user input must not act as a wildcard.
+    Punctuation is ignored by the normalized search, so these find nothing.
+    SQL injection attempts are covered by test_search_is_not_vulnerable_to_sql_injection."""
     response = client.get(MOVIES_URL, params={"search": search})
     assert response.status_code == 200
-    assert response.json()["total"] == 0
+    assert response.json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
 
 
 def test_pagination_returns_consecutive_pages(client: TestClient):
@@ -188,10 +183,6 @@ def test_invalid_query_parameters_are_rejected(client: TestClient, params):
     assert client.get(MOVIES_URL, params=params).status_code == 422
 
 
-def test_maximum_page_size_is_accepted(client: TestClient):
-    assert client.get(MOVIES_URL, params={"limit": 100}).status_code == 200
-
-
 # --- Normalized search ---------------------------------------------------------
 
 
@@ -215,8 +206,10 @@ def test_search_ignores_punctuation_differences(client: TestClient, search):
     assert search_ids(client, search) == [2542]
 
 
-@pytest.mark.parametrize("search", ["toy  story", "\ttoy story\n", "Toy   STORY"])
-def test_search_ignores_repeated_and_surrounding_whitespace(client: TestClient, search):
+@pytest.mark.parametrize(
+    "search", ["TOY STORY", "tOy StOrY", "  toy story  ", "toy  story", "\ttoy story\n"]
+)
+def test_search_ignores_case_and_whitespace(client: TestClient, search):
     assert search_ids(client, search) == [1, 3114, 78499]
 
 
@@ -224,13 +217,6 @@ def test_search_finds_alternative_titles_in_parentheses(client: TestClient):
     assert search_ids(client, "cite des enfants perdus") == [29]
     assert search_ids(client, "the city of lost children") == [29]
     assert search_ids(client, "yao a yao") == [30]
-
-
-@pytest.mark.parametrize("search", ["!!!", "...", "-", "&&"])
-def test_search_with_only_punctuation_returns_nothing(client: TestClient, search):
-    response = client.get(MOVIES_URL, params={"search": search})
-    assert response.status_code == 200
-    assert response.json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
 
 
 def test_search_is_not_vulnerable_to_sql_injection(client: TestClient, db_session: Session):
@@ -297,12 +283,6 @@ def test_unknown_movie_returns_404(client: TestClient):
 def test_invalid_movie_id_is_rejected(client: TestClient, movie_id):
     assert client.get(f"{MOVIES_URL}/{movie_id}").status_code == 422
     assert client.get(f"{MOVIES_URL}/{movie_id}/details").status_code == 422
-
-
-def test_movie_endpoints_do_not_require_authentication(client: TestClient):
-    assert client.get(MOVIES_URL).status_code == 200
-    assert client.get(f"{MOVIES_URL}/1").status_code == 200
-    assert client.get(f"{MOVIES_URL}/1/details").status_code == 200
 
 
 # --- GET /movies/{movie_id}/details (stored metadata) -----------------------

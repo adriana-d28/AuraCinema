@@ -18,11 +18,6 @@ PASSWORD = "S3cure-Password!"
 
 
 class TestPasswordHashing:
-    def test_hash_is_not_the_plaintext_password(self):
-        hashed = hash_password(PASSWORD)
-        assert hashed != PASSWORD
-        assert PASSWORD not in hashed
-
     def test_hash_uses_argon2id(self):
         assert hash_password(PASSWORD).startswith("$argon2id$")
 

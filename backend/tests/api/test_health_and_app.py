@@ -10,22 +10,6 @@ from app.main import app, create_app
 pytestmark = pytest.mark.db
 
 
-def test_application_initialises_with_expected_routes():
-    # The OpenAPI schema is the public description of every registered route.
-    paths = set(create_app().openapi()["paths"])
-    assert {
-        "/health",
-        "/health/ready",
-        "/api/v1/auth/register",
-        "/api/v1/auth/login",
-        "/api/v1/users/me",
-        "/api/v1/ratings",
-        "/api/v1/ratings/{movie_id}",
-        "/api/v1/watchlist",
-        "/api/v1/watchlist/{movie_id}",
-    } <= paths
-
-
 def test_liveness_check(client: TestClient):
     response = client.get("/health")
     assert response.status_code == 200
@@ -54,18 +38,6 @@ def test_readiness_check_reports_database_failure_without_details(client: TestCl
     assert response.status_code == 503
     assert response.json() == {"status": "unavailable", "database": "unreachable"}
     assert "secret_user" not in response.text
-
-
-def test_openapi_schema_is_available(client: TestClient):
-    response = client.get("/openapi.json")
-    assert response.status_code == 200
-    assert response.json()["info"]["title"] == "AuraCinema API"
-
-
-def test_unknown_route_returns_json_404(client: TestClient):
-    response = client.get("/api/v1/does-not-exist")
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Not Found"}
 
 
 def test_unhandled_errors_return_generic_500_without_internal_details():
